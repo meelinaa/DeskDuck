@@ -1,0 +1,16 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: deskduck-rabbitmq
+    ports:
+      - "5672:5672" # AMQP-Port
+      - "15672:15672" # Management-UI
+    environment:
+      RABBITMQ_DEFAULT_USER: deskduck
+      RABBITMQ_DEFAULT_PASS: deskduck
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    restart: unless-stopped
+
+volumes:
+  rabbitmq-data:

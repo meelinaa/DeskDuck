@@ -12,7 +12,8 @@ namespace DeskDuck
     {
         WalkingLeft,
         WalkingRight,
-        Waiting
+        Waiting,
+        Held
     }
 
     public class DuckConfig
@@ -36,8 +37,25 @@ namespace DeskDuck
         private double _dx;
         private double _dy;
         private bool _isMoving;
+        private bool _isPaused;
 
         public event Action<DuckState>? StateChanged;
+        public event Action<int, int>? PositionChanged;
+
+        public void Pause()
+        {
+            _isPaused = true;
+            _movementTimer.Stop();
+        }
+
+        public void Resume()
+        {
+            _isPaused = false;
+            // Sync internal coordinate tracker to current window position before starting next cycle
+            _currentX = _appWindow.Position.X;
+            _currentY = _appWindow.Position.Y;
+            StartNextCycle();
+        }
 
         public DuckMovementManager(AppWindow appWindow, DispatcherQueue dispatcherQueue)
         {
@@ -79,6 +97,7 @@ namespace DeskDuck
 
         public void Start()
         {
+            PositionChanged?.Invoke((int)_currentX, (int)_currentY);
             StartNextCycle();
         }
 
@@ -129,7 +148,7 @@ namespace DeskDuck
 
         private void OnTimerTick(DispatcherQueueTimer sender, object args)
         {
-            if (!_isMoving) return;
+            if (_isPaused || !_isMoving) return;
 
             // Move step
             _currentX += _dx;
@@ -146,11 +165,13 @@ namespace DeskDuck
                 _currentX = _targetX;
                 _currentY = _targetY;
                 _appWindow.Move(new PointInt32((int)_currentX, (int)_currentY));
+                PositionChanged?.Invoke((int)_currentX, (int)_currentY);
                 StartNextCycle();
             }
             else
             {
                 _appWindow.Move(new PointInt32((int)_currentX, (int)_currentY));
+                PositionChanged?.Invoke((int)_currentX, (int)_currentY);
             }
         }
     }

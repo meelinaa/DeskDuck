@@ -10,19 +10,55 @@
     Title="DeskDuck">
 
 
-    <Grid Background="Transparent">
-        <Image
-            x:Name="DuckImage"
-            Height="50"
-            Width="50"
-            Stretch="Uniform"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center">
-            <Image.Source>
-                <BitmapImage
-                    UriSource="ms-appx:///Assets/Duck/duck-sitting.gif"
-                    AutoPlay="True" />
-            </Image.Source>
-        </Image>
+    <Grid Background="Transparent" DataContext="{x:Bind ViewModel}">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            
+            <!-- Text-Sprechblase über der Ente -->
+            <Border x:Name="SpeechBubbleBorder"
+                    Background="White"
+                    CornerRadius="8"
+                    Padding="8,6"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Margin="0,-40,0,0"
+                    MinWidth="80"
+                    MaxWidth="200"
+                    BorderBrush="Gray"
+                    BorderThickness="1"
+                    Visibility="{Binding NotificationVisibility, Mode=OneWay}">
+                <StackPanel Spacing="2">
+                    <TextBlock x:Name="SpeechBubbleTitle"
+                               Text="{Binding NotificationTitle, Mode=OneWay}"
+                               Visibility="{Binding TitleVisibility, Mode=OneWay}"
+                               FontSize="12"
+                               FontWeight="Bold"
+                               Foreground="Black"
+                               TextWrapping="Wrap"/>
+                    <TextBlock x:Name="SpeechBubbleMessage"
+                               Text="{Binding NotificationMessage, Mode=OneWay}"
+                               FontSize="12"
+                               Foreground="Black"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+            <Image
+                x:Name="DuckImage"
+                Height="50"
+                Width="50"
+                Stretch="Uniform"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Source="{Binding DuckImageUri, Mode=OneWay}"
+                PointerPressed="DuckImage_PointerPressed"
+                PointerMoved="DuckImage_PointerMoved"
+                PointerReleased="DuckImage_PointerReleased"/>
+            <!-- Koordinaten-Anzeige unter der Ente -->
+            <TextBlock
+                Text="{Binding CoordinatesText, Mode=OneWay}"
+                FontSize="10"
+                Foreground="Black"
+                HorizontalAlignment="Center"
+                Margin="0,4,0,0"/>
+        </StackPanel>
     </Grid>
 </Window>
