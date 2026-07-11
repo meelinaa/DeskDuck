@@ -1,0 +1,5 @@
+{
+  "Speed": 2.0,
+  "MinWaitSeconds": 5,
+  "MaxWaitSeconds": 15
+}

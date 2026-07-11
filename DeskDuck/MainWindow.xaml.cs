@@ -33,10 +33,33 @@ namespace DeskDuck
 
         #endregion
 
+        private DuckMovementManager? _movementManager;
+
         public MainWindow()
         {
             InitializeComponent();
             ConfigureOverlayWindow();
+
+            _movementManager = new DuckMovementManager(this.AppWindow, this.DispatcherQueue);
+            _movementManager.StateChanged += OnDuckStateChanged;
+            _movementManager.Start();
+        }
+
+        private void OnDuckStateChanged(DuckState state)
+        {
+            UpdateDuckVisual(state);
+        }
+
+        private void UpdateDuckVisual(DuckState state)
+        {
+            string uriString = state switch
+            {
+                DuckState.WalkingLeft => "ms-appx:///Assets/Duck/duck-walking-to-left.gif",
+                DuckState.WalkingRight => "ms-appx:///Assets/Duck/duck-walking-to-right.gif",
+                _ => "ms-appx:///Assets/Duck/duck-sitting.gif"
+            };
+
+            DuckImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(uriString));
         }
 
         private void ConfigureOverlayWindow()
@@ -53,12 +76,8 @@ namespace DeskDuck
             presenter.SetBorderAndTitleBar(false, false);
             appWindow.SetPresenter(presenter);
 
-            // Fenster auf volle Bildschirmgröße setzen
-            var display = DisplayArea.GetFromWindowId(appWindow.Id, DisplayAreaFallback.Primary);
-            appWindow.MoveAndResize(new Windows.Graphics.RectInt32(
-                0, 0,
-                display.OuterBounds.Width,
-                display.OuterBounds.Height));
+            // Fenstergröße auf kompakte Ente-Größe setzen (100x100)
+            appWindow.Resize(new Windows.Graphics.SizeInt32(100, 100));
 
             // Klickdurchlässig machen (Mausklicks gehen an darunterliegende Apps)
             var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);

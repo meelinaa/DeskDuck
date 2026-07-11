@@ -12,6 +12,7 @@
 
     <Grid Background="Transparent">
         <Image
+            x:Name="DuckImage"
             Height="50"
             Width="50"
             Stretch="Uniform"
@@ -19,7 +20,7 @@
             VerticalAlignment="Center">
             <Image.Source>
                 <BitmapImage
-                    UriSource="ms-appx:///Assets/Duck/duck walking gif.gif"
+                    UriSource="ms-appx:///Assets/Duck/duck-sitting.gif"
                     AutoPlay="True" />
             </Image.Source>
         </Image>

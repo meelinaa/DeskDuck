@@ -14,8 +14,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <Content Include="Assets\Duck\duck walking gif.gif" />
-    <Content Include="Assets\Duck\duck sitting gif.gif" />
+    <Content Include="Assets\Duck\duck-walking-to-left.gif" />
+    <Content Include="Assets\Duck\duck-walking-to-right.gif" />
+    <Content Include="Assets\Duck\duck-sitting.gif" />
+    <Content Include="config.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
