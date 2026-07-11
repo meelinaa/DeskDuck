@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "DeskDuck (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "DeskDuck (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
