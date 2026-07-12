@@ -3,8 +3,12 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using System;
+using System.Threading;
 using System.Runtime.InteropServices;
 using WinRT.Interop;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -34,6 +38,30 @@ namespace DeskDuck
             public int Y;
         }
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+        [DllImport("comctl32.dll", CharSet = CharSet.Auto)]
+        private static extern bool SetWindowSubclass(IntPtr hWnd, SUBCLASSPROC pfnSubclass, IntPtr uIdSubclass, IntPtr dwRefData);
+
+        [DllImport("comctl32.dll", CharSet = CharSet.Auto)]
+        private static extern bool RemoveWindowSubclass(IntPtr hWnd, SUBCLASSPROC pfnSubclass, IntPtr uIdSubclass);
+
+        [DllImport("comctl32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
+
+        private delegate IntPtr SUBCLASSPROC(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData);
+
+        private const int HOTKEY_ID = 1337;
+        private const uint MOD_ALT = 0x0001;
+        private const uint MOD_CONTROL = 0x0002;
+        private const uint MOD_SHIFT = 0x0004;
+        private const uint VK_D = 0x44;
+        private const uint WM_HOTKEY = 0x0312;
+
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_LAYERED = 0x00080000;
         private const int WS_EX_TRANSPARENT = 0x00000020;
@@ -42,8 +70,11 @@ namespace DeskDuck
 
         #endregion
 
+        private SUBCLASSPROC? _subclassProc;
+
         private DuckMovementManager? _movementManager;
         private RabbitMQBackgroundService? _rabbitMQService;
+        private IHost? _host;
 
         public MainViewModel ViewModel { get; } = new();
 
@@ -65,14 +96,80 @@ namespace DeskDuck
             );
             _rabbitMQService.Start();
 
+            // Start the Publisher services Host
+            try
+            {
+                _host = Host.CreateDefaultBuilder()
+                    .ConfigureAppConfiguration((hostingContext, config) =>
+                    {
+                        config.SetBasePath(AppContext.BaseDirectory);
+                        config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+                    })
+                    .ConfigureServices((context, services) =>
+                    {
+                        services.Configure<SystemMonitorOptions>(context.Configuration.GetSection("Publishers:SystemMonitor"));
+                        services.Configure<WeatherPublisherOptions>(context.Configuration.GetSection("Publishers:Weather"));
+                        
+                        services.AddSingleton<RabbitMqPublisher>();
+                        
+                        services.AddHostedService<SystemMonitorPublisherService>();
+                        services.AddHostedService<WeatherPublisherService>();
+                    })
+                    .Build();
+
+                _host.Start();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Host] Failed to start: {ex.Message}");
+            }
+
             this.Closed += OnWindowClosed;
         }
 
         private async void OnWindowClosed(object sender, WindowEventArgs args)
         {
-            if (_rabbitMQService != null)
+            try
             {
-                await _rabbitMQService.StopAsync();
+                var hwnd = WindowNative.GetWindowHandle(this);
+                UnregisterHotKey(hwnd, HOTKEY_ID);
+                if (_subclassProc != null)
+                {
+                    RemoveWindowSubclass(hwnd, _subclassProc, new IntPtr(1));
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Hotkey Cleanup] Error: {ex.Message}");
+            }
+
+            try
+            {
+                if (_host != null)
+                {
+                    // Use a cancellation token source with timeout to guarantee no hanging on close
+                    using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+                    {
+                        await _host.StopAsync(cts.Token);
+                    }
+                    _host.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Host] Error during shutdown: {ex.Message}");
+            }
+
+            try
+            {
+                if (_rabbitMQService != null)
+                {
+                    await _rabbitMQService.StopAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[RabbitMQService] Error during shutdown: {ex.Message}");
             }
         }
 
@@ -80,6 +177,23 @@ namespace DeskDuck
         {
             ViewModel.NotificationTitle = message.Title ?? string.Empty;
             ViewModel.NotificationMessage = message.Message;
+
+            var severity = message.Severity?.ToLowerInvariant() ?? "";
+            var source = message.Source?.ToLowerInvariant() ?? "";
+
+            if (severity == "warning")
+            {
+                ViewModel.NotificationTextBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 209, 52, 56));
+            }
+            else if (severity == "info" || source == "weather")
+            {
+                ViewModel.NotificationTextBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212));
+            }
+            else
+            {
+                ViewModel.NotificationTextBrush = new SolidColorBrush(Microsoft.UI.Colors.Black);
+            }
+
             ViewModel.NotificationVisibility = Visibility.Visible;
         }
 
@@ -92,18 +206,161 @@ namespace DeskDuck
         private Windows.Graphics.PointInt32 _dragStartWindowPos;
         private PointStruct _dragStartCursorPos;
 
+        private ChatWindow? _chatWindow;
+        private bool _isChatActive = false;
+        private SettingsWindow? _settingsWindow;
+        private bool _isSettingsActive = false;
+
+        private void DuckContextMenu_Closed(object sender, object e)
+        {
+            // Resume walking only if the chat window and settings window are not opened
+            if (!_isChatActive && !_isSettingsActive)
+            {
+                _movementManager?.Resume();
+            }
+        }
+
+        private void ChatWithAI_Click(object sender, RoutedEventArgs e)
+        {
+            _isChatActive = true;
+
+            if (_chatWindow != null)
+            {
+                _chatWindow.Activate();
+                return;
+            }
+
+            // Create new ChatWindow
+            _chatWindow = new ChatWindow();
+            var chatAppWindow = _chatWindow.AppWindow;
+            
+            chatAppWindow.Changed += ChatAppWindow_Changed;
+
+            _chatWindow.Closed += (s, args) =>
+            {
+                chatAppWindow.Changed -= ChatAppWindow_Changed;
+                _chatWindow = null;
+                _isChatActive = false;
+                // Resume movement after closing the chat window
+                _movementManager?.Start();
+            };
+
+            // Freeze movement completely during chat
+            _movementManager?.Stop();
+
+            // Open chat window first so position/size are calculated
+            _chatWindow.Activate();
+
+            // Dock duck window next to top-left of chat window
+            var chatPos = chatAppWindow.Position;
+            var chatSize = chatAppWindow.Size;
+
+            int newX = chatPos.X - (this.AppWindow.Size.Width / 2);
+            int newY = chatPos.Y - (this.AppWindow.Size.Height / 2);
+
+            this.AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
+            ViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
+        }
+
+        private void ChatAppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
+        {
+            if (args.DidPositionChange && _chatWindow != null)
+            {
+                var chatPos = sender.Position;
+                var chatSize = sender.Size;
+
+                int newX = chatPos.X - (this.AppWindow.Size.Width / 2);
+                int newY = chatPos.Y - (this.AppWindow.Size.Height / 2);
+
+                this.AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
+                ViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
+            }
+        }
+
+        private void Settings_Click(object sender, RoutedEventArgs e)
+        {
+            _isSettingsActive = true;
+
+            if (_settingsWindow != null)
+            {
+                _settingsWindow.Activate();
+                return;
+            }
+
+            // Create new SettingsWindow
+            _settingsWindow = new SettingsWindow();
+            var settingsAppWindow = _settingsWindow.AppWindow;
+            
+            settingsAppWindow.Changed += SettingsAppWindow_Changed;
+
+            _settingsWindow.Closed += (s, args) =>
+            {
+                settingsAppWindow.Changed -= SettingsAppWindow_Changed;
+                _settingsWindow = null;
+                _isSettingsActive = false;
+                // Resume movement after closing the settings window
+                _movementManager?.Start();
+            };
+
+            // Freeze movement completely during settings
+            _movementManager?.Stop();
+
+            // Open settings window first so position/size are calculated
+            _settingsWindow.Activate();
+
+            // Dock duck window next to top-left of settings window
+            var settingsPos = settingsAppWindow.Position;
+            var settingsSize = settingsAppWindow.Size;
+
+            int newX = settingsPos.X - (this.AppWindow.Size.Width / 2);
+            int newY = settingsPos.Y - (this.AppWindow.Size.Height / 2);
+
+            this.AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
+            ViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
+        }
+
+        private void SettingsAppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
+        {
+            if (args.DidPositionChange && _settingsWindow != null)
+            {
+                var settingsPos = sender.Position;
+                var settingsSize = sender.Size;
+
+                int newX = settingsPos.X - (this.AppWindow.Size.Width / 2);
+                int newY = settingsPos.Y - (this.AppWindow.Size.Height / 2);
+
+                this.AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
+                ViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
+            }
+        }
+
         private void DuckImage_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            if (_movementManager == null) return;
+            if (_movementManager == null || _isChatActive || _isSettingsActive) return;
 
-            _isDragging = true;
-            _movementManager.Pause();
-            UpdateDuckVisual(DuckState.Held);
+            var properties = e.GetCurrentPoint(sender as UIElement).Properties;
 
-            GetCursorPos(out _dragStartCursorPos);
-            _dragStartWindowPos = new Windows.Graphics.PointInt32(this.AppWindow.Position.X, this.AppWindow.Position.Y);
+            // Linksklick -> Drag & Drop starten
+            if (properties.IsLeftButtonPressed)
+            {
+                _isDragging = true;
+                _movementManager.Pause();
+                UpdateDuckVisual(DuckState.Held);
 
-            (sender as UIElement)?.CapturePointer(e.Pointer);
+                GetCursorPos(out _dragStartCursorPos);
+                _dragStartWindowPos = new Windows.Graphics.PointInt32(this.AppWindow.Position.X, this.AppWindow.Position.Y);
+
+                (sender as UIElement)?.CapturePointer(e.Pointer);
+            }
+            // Rechtsklick -> Kontextmenü anzeigen
+            else if (properties.IsRightButtonPressed)
+            {
+                _movementManager.Pause();
+                UpdateDuckVisual(DuckState.Waiting);
+
+                // Show context menu
+                Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(sender as FrameworkElement);
+            }
         }
 
         private void DuckImage_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -129,7 +386,11 @@ namespace DeskDuck
             (sender as UIElement)?.ReleasePointerCapture(e.Pointer);
 
             UpdateDuckVisual(DuckState.Waiting);
-            _movementManager?.Resume();
+            
+            if (!_isChatActive)
+            {
+                _movementManager?.Resume();
+            }
         }
 
         private void OnDuckStateChanged(DuckState state)
@@ -177,6 +438,42 @@ namespace DeskDuck
             var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
             SetWindowLong(hwnd, GWL_EXSTYLE,
                 exStyle | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+
+            // Register global hotkey and subclass window proc
+            try
+            {
+                _subclassProc = new SUBCLASSPROC(NewWindowProc);
+                SetWindowSubclass(hwnd, _subclassProc, new IntPtr(1), IntPtr.Zero);
+                RegisterHotKey(hwnd, HOTKEY_ID, MOD_CONTROL | MOD_ALT | MOD_SHIFT, VK_D);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Hotkey Registration] Failed: {ex.Message}");
+            }
+        }
+
+        private IntPtr NewWindowProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData)
+        {
+            if (uMsg == WM_HOTKEY && wParam.ToInt32() == HOTKEY_ID)
+            {
+                if (!_isDragging && !_isChatActive && !_isSettingsActive && _movementManager != null)
+                {
+                    this.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        var displayArea = Microsoft.UI.Windowing.DisplayArea.Primary;
+                        var workArea = displayArea.WorkArea;
+
+                        double centerX = workArea.X + (workArea.Width - this.AppWindow.Size.Width) / 2.0;
+                        double centerY = workArea.Y + (workArea.Height - this.AppWindow.Size.Height) / 2.0;
+
+                        _movementManager.TeleportTo(centerX, centerY);
+                        ViewModel.CoordinatesText = $"X: {(int)centerX}, Y: {(int)centerY}";
+                    });
+                }
+                return IntPtr.Zero;
+            }
+
+            return DefSubclassProc(hWnd, uMsg, wParam, lParam);
         }
     }
 

@@ -32,7 +32,7 @@
                                Visibility="{Binding TitleVisibility, Mode=OneWay}"
                                FontSize="12"
                                FontWeight="Bold"
-                               Foreground="Black"
+                               Foreground="{Binding NotificationTextBrush, Mode=OneWay}"
                                TextWrapping="Wrap"/>
                     <TextBlock x:Name="SpeechBubbleMessage"
                                Text="{Binding NotificationMessage, Mode=OneWay}"
@@ -51,7 +51,14 @@
                 Source="{Binding DuckImageUri, Mode=OneWay}"
                 PointerPressed="DuckImage_PointerPressed"
                 PointerMoved="DuckImage_PointerMoved"
-                PointerReleased="DuckImage_PointerReleased"/>
+                PointerReleased="DuckImage_PointerReleased">
+                <FlyoutBase.AttachedFlyout>
+                    <MenuFlyout x:Name="DuckContextMenu" Closed="DuckContextMenu_Closed">
+                        <MenuFlyoutItem Text="Chat mit KI" Click="ChatWithAI_Click" />
+                        <MenuFlyoutItem Text="Einstellungen" Click="Settings_Click" />
+                    </MenuFlyout>
+                </FlyoutBase.AttachedFlyout>
+            </Image>
             <!-- Koordinaten-Anzeige unter der Ente -->
             <TextBlock
                 Text="{Binding CoordinatesText, Mode=OneWay}"

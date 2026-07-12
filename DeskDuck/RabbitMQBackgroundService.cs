@@ -11,8 +11,25 @@ namespace DeskDuck
 {
     public class NotificationMessage
     {
-        public string? Title { get; set; }
-        public string Message { get; set; } = string.Empty;
+        private string? _title;
+        private string? _message;
+
+        public string? Source { get; set; }
+        public string? Severity { get; set; }
+        public string? Text { get; set; }
+        public string? Link { get; set; }
+
+        public string? Title
+        {
+            get => _title ?? (string.IsNullOrEmpty(Source) ? "Notification" : Source);
+            set => _title = value;
+        }
+
+        public string Message
+        {
+            get => _message ?? Text ?? string.Empty;
+            set => _message = value;
+        }
     }
 
     public class RabbitMQBackgroundService
@@ -130,9 +147,6 @@ namespace DeskDuck
                         consumer: consumer,
                         cancellationToken: cancellationToken);
 
-                    // Starte den automatischen Test-Nachrichten-Publisher
-                    _ = StartTestPublishingLoopAsync(_channel, cancellationToken);
-
                     // Keep the task alive while connection is open
                     while (_connection.IsOpen && !cancellationToken.IsCancellationRequested)
                     {
@@ -143,42 +157,6 @@ namespace DeskDuck
                 {
                     System.Diagnostics.Debug.WriteLine($"RabbitMQ connection failed: {ex.Message}. Retrying in 5 seconds...");
                     await Task.Delay(5000, cancellationToken);
-                }
-            }
-        }
-
-        private async Task StartTestPublishingLoopAsync(IChannel channel, CancellationToken cancellationToken)
-        {
-            int testCount = 0;
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    // Warte 2 Minuten
-                    await Task.Delay(TimeSpan.FromMinutes(2), cancellationToken);
-
-                    testCount++;
-                    var testMessage = new NotificationMessage
-                    {
-                        Title = $"DeskDuck Test #{testCount}",
-                        Message = $"Dies ist eine automatisch gesendete Testnachricht um {DateTime.Now:HH:mm:ss}."
-                    };
-
-                    var json = JsonSerializer.Serialize(testMessage);
-                    var body = Encoding.UTF8.GetBytes(json);
-
-                    // Veröffentliche die Nachricht in der Queue
-                    await channel.BasicPublishAsync(
-                        exchange: string.Empty,
-                        routingKey: "deskduck.notifications",
-                        body: body,
-                        cancellationToken: cancellationToken);
-
-                    System.Diagnostics.Debug.WriteLine($"[TestPublisher] Sent test message #{testCount} to RabbitMQ");
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[TestPublisher] Error publishing test message: {ex.Message}");
                 }
             }
         }

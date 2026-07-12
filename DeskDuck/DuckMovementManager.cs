@@ -38,6 +38,7 @@ namespace DeskDuck
         private double _dy;
         private bool _isMoving;
         private bool _isPaused;
+        private bool _isStopped;
 
         public event Action<DuckState>? StateChanged;
         public event Action<int, int>? PositionChanged;
@@ -50,11 +51,27 @@ namespace DeskDuck
 
         public void Resume()
         {
+            if (_isStopped) return;
             _isPaused = false;
             // Sync internal coordinate tracker to current window position before starting next cycle
             _currentX = _appWindow.Position.X;
             _currentY = _appWindow.Position.Y;
             StartNextCycle();
+        }
+
+        public void Stop()
+        {
+            _isStopped = true;
+            _isMoving = false;
+            _movementTimer.Stop();
+            StateChanged?.Invoke(DuckState.Waiting);
+        }
+
+        public void Start()
+        {
+            _isStopped = false;
+            Resume();
+            PositionChanged?.Invoke((int)_currentX, (int)_currentY);
         }
 
         public DuckMovementManager(AppWindow appWindow, DispatcherQueue dispatcherQueue)
@@ -95,14 +112,9 @@ namespace DeskDuck
             }
         }
 
-        public void Start()
-        {
-            PositionChanged?.Invoke((int)_currentX, (int)_currentY);
-            StartNextCycle();
-        }
-
         private async void StartNextCycle()
         {
+            if (_isStopped) return;
             _isMoving = false;
             _movementTimer.Stop();
 
@@ -112,6 +124,8 @@ namespace DeskDuck
             // Wait for a random duration between MinWaitSeconds and MaxWaitSeconds
             int waitTimeMs = _random.Next(_config.MinWaitSeconds * 1000, (_config.MaxWaitSeconds + 1) * 1000);
             await Task.Delay(waitTimeMs);
+
+            if (_isStopped) return;
 
             // Choose a new target position within display bounds
             var display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
@@ -148,7 +162,7 @@ namespace DeskDuck
 
         private void OnTimerTick(DispatcherQueueTimer sender, object args)
         {
-            if (_isPaused || !_isMoving) return;
+            if (_isStopped || _isPaused || !_isMoving) return;
 
             // Move step
             _currentX += _dx;
@@ -172,6 +186,20 @@ namespace DeskDuck
             {
                 _appWindow.Move(new PointInt32((int)_currentX, (int)_currentY));
                 PositionChanged?.Invoke((int)_currentX, (int)_currentY);
+            }
+        }
+
+        public void TeleportTo(double x, double y)
+        {
+            _currentX = x;
+            _currentY = y;
+            _appWindow.Move(new PointInt32((int)x, (int)y));
+            PositionChanged?.Invoke((int)x, (int)y);
+
+            // If we are currently active (not paused or stopped), restart the random path selection from here
+            if (!_isStopped && !_isPaused)
+            {
+                StartNextCycle();
             }
         }
     }

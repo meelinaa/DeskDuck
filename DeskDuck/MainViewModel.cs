@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 
 namespace DeskDuck
 {
@@ -11,6 +12,7 @@ namespace DeskDuck
         private string _notificationMessage = string.Empty;
         private Visibility _notificationVisibility = Visibility.Collapsed;
         private Visibility _titleVisibility = Visibility.Collapsed;
+        private Brush _notificationTextBrush = new SolidColorBrush(Microsoft.UI.Colors.Black);
 
         public string DuckImageUri
         {
@@ -54,6 +56,12 @@ namespace DeskDuck
         {
             get => _titleVisibility;
             set => SetProperty(ref _titleVisibility, value);
+        }
+
+        public Brush NotificationTextBrush
+        {
+            get => _notificationTextBrush;
+            set => SetProperty(ref _notificationTextBrush, value);
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

@@ -1,5 +1,7 @@
 {
   "Speed": 1.5,
   "MinWaitSeconds": 5,
-  "MaxWaitSeconds": 30
+  "MaxWaitSeconds": 30,
+  "OllamaModel": "llama3.2:latest",
+  "OllamaUrl": "http://localhost:11434"
 }

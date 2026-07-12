@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="DeskDuck.SettingsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:DeskDuck"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="DeskDuck Einstellungen">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <Grid Padding="16" RowDefinitions="*,Auto" Background="Transparent">
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="16" Margin="0,0,0,16">
+                <!-- System Monitor Header -->
+                <TextBlock Text="System Monitor" FontSize="18" FontWeight="Bold"/>
+                
+                <ToggleSwitch x:Name="SysMonitorEnabled" Header="System Monitor aktivieren" IsOn="True" />
+                
+                <StackPanel Spacing="8" Margin="12,0,0,0" x:Name="SysMonitorPanel">
+                    <NumberBox x:Name="SysCheckInterval" Header="Prüfintervall (Sekunden)" Value="10" SpinButtonPlacementMode="Compact" SmallChange="1" LargeChange="10" Minimum="1"/>
+                    
+                    <ToggleSwitch x:Name="BatteryEnabled" Header="Akku Warnung aktivieren" IsOn="True"/>
+                    <Slider x:Name="BatteryThreshold" Header="Akku Schwellenwert (%)" Minimum="1" Maximum="100" Value="20" Margin="12,0,0,0"/>
+
+                    <ToggleSwitch x:Name="CpuEnabled" Header="CPU Warnung aktivieren" IsOn="True"/>
+                    <Slider x:Name="CpuThreshold" Header="CPU Schwellenwert (%)" Minimum="1" Maximum="100" Value="85" Margin="12,0,0,0"/>
+
+                    <ToggleSwitch x:Name="RamEnabled" Header="RAM Warnung aktivieren" IsOn="True"/>
+                    <Slider x:Name="RamThreshold" Header="RAM Schwellenwert (%)" Minimum="1" Maximum="100" Value="85" Margin="12,0,0,0"/>
+                </StackPanel>
+
+                <MenuFlyoutSeparator Margin="0,8"/>
+
+                <!-- Weather Header -->
+                <TextBlock Text="Wetter Publisher" FontSize="18" FontWeight="Bold"/>
+                
+                <ToggleSwitch x:Name="WeatherEnabled" Header="Wetter aktivieren" IsOn="True"/>
+                
+                <StackPanel Spacing="8" Margin="12,0,0,0" x:Name="WeatherPanel">
+                    <NumberBox x:Name="WeatherInterval" Header="Intervall (Minuten)" Value="30" SpinButtonPlacementMode="Compact" SmallChange="5" LargeChange="30" Minimum="1"/>
+                    <TextBox x:Name="WeatherApiKey" Header="OpenWeatherMap API Key" PlaceholderText="API Key eingeben..."/>
+                    <TextBox x:Name="WeatherOverrideCity" Header="Stadt überschreiben (optional)" PlaceholderText="z.B. Berlin"/>
+                </StackPanel>
+
+                <MenuFlyoutSeparator Margin="0,8"/>
+                
+                <!-- Global Hotkeys Info -->
+                <TextBlock Text="Globale Hotkeys" FontSize="18" FontWeight="Bold"/>
+                <TextBlock Text="Ente zentrieren: Strg + Alt + Umschalt + D" Margin="12,4,0,0" Foreground="Gray" FontSize="13"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Action Buttons -->
+        <Border Grid.Row="1" BorderBrush="#22888888" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+            <Grid ColumnDefinitions="*,*">
+                <Button Grid.Column="0" Content="Speichern" Style="{StaticResource AccentButtonStyle}" Click="SaveButton_Click" HorizontalAlignment="Stretch" Margin="0,0,8,0"/>
+                <Button Grid.Column="1" Content="Abbrechen" Click="CancelButton_Click" HorizontalAlignment="Stretch" Margin="8,0,0,0"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
