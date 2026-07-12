@@ -9,6 +9,19 @@ using WinRT.Interop;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using DeskDuck.Consumer;
+using DeskDuck.Manager;
+using DeskDuck.Models;
+using DeskDuck.Publisher;
+using DeskDuck.Services;
+using DeskDuck.ViewModel;
+using DeskDuck.Enums;
+using System.Diagnostics;
+using Windows.UI;
+using Microsoft.UI;
+using Windows.Graphics;
+using Microsoft.UI.Input;
+using Microsoft.UI.Xaml.Controls.Primitives;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -76,21 +89,21 @@ namespace DeskDuck
         private RabbitMQBackgroundService? _rabbitMQService;
         private IHost? _host;
 
-        public MainViewModel ViewModel { get; } = new();
+        public MainViewModel MainViewModel { get; } = new();
 
         public MainWindow()
         {
             InitializeComponent();
             ConfigureOverlayWindow();
 
-            _movementManager = new DuckMovementManager(this.AppWindow, this.DispatcherQueue);
+            _movementManager = new DuckMovementManager(AppWindow, DispatcherQueue);
             _movementManager.StateChanged += OnDuckStateChanged;
             _movementManager.PositionChanged += OnDuckPositionChanged;
             _movementManager.Start();
 
             // Start RabbitMQ Background Service
             _rabbitMQService = new RabbitMQBackgroundService(
-                this.DispatcherQueue,
+                DispatcherQueue,
                 ShowNotification,
                 HideNotification
             );
@@ -121,17 +134,17 @@ namespace DeskDuck
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Host] Failed to start: {ex.Message}");
+                Debug.WriteLine($"[Host] Failed to start: {ex.Message}");
             }
 
-            this.Closed += OnWindowClosed;
+            Closed += OnWindowClosed;
         }
 
         private async void OnWindowClosed(object sender, WindowEventArgs args)
         {
             try
             {
-                var hwnd = WindowNative.GetWindowHandle(this);
+                nint hwnd = WindowNative.GetWindowHandle(this);
                 UnregisterHotKey(hwnd, HOTKEY_ID);
                 if (_subclassProc != null)
                 {
@@ -140,7 +153,7 @@ namespace DeskDuck
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Hotkey Cleanup] Error: {ex.Message}");
+                Debug.WriteLine($"[Hotkey Cleanup] Error: {ex.Message}");
             }
 
             try
@@ -148,7 +161,7 @@ namespace DeskDuck
                 if (_host != null)
                 {
                     // Use a cancellation token source with timeout to guarantee no hanging on close
-                    using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+                    using (CancellationTokenSource cts = new(TimeSpan.FromSeconds(5)))
                     {
                         await _host.StopAsync(cts.Token);
                     }
@@ -157,7 +170,7 @@ namespace DeskDuck
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Host] Error during shutdown: {ex.Message}");
+                Debug.WriteLine($"[Host] Error during shutdown: {ex.Message}");
             }
 
             try
@@ -169,37 +182,37 @@ namespace DeskDuck
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[RabbitMQService] Error during shutdown: {ex.Message}");
+                Debug.WriteLine($"[RabbitMQService] Error during shutdown: {ex.Message}");
             }
         }
 
         private void ShowNotification(NotificationMessage message)
         {
-            ViewModel.NotificationTitle = message.Title ?? string.Empty;
-            ViewModel.NotificationMessage = message.Message;
+            MainViewModel.NotificationTitle = message.Title ?? string.Empty;
+            MainViewModel.NotificationMessage = message.Message;
 
-            var severity = message.Severity?.ToLowerInvariant() ?? "";
-            var source = message.Source?.ToLowerInvariant() ?? "";
+            string severity = message.Severity?.ToLowerInvariant() ?? string.Empty;
+            string source = message.Source?.ToLowerInvariant() ?? string.Empty;
 
             if (severity == "warning")
             {
-                ViewModel.NotificationTextBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 209, 52, 56));
+                MainViewModel.NotificationTextBrush = new SolidColorBrush(Color.FromArgb(255, 209, 52, 56));
             }
             else if (severity == "info" || source == "weather")
             {
-                ViewModel.NotificationTextBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212));
+                MainViewModel.NotificationTextBrush = new SolidColorBrush(Color.FromArgb(255, 0, 120, 212));
             }
             else
             {
-                ViewModel.NotificationTextBrush = new SolidColorBrush(Microsoft.UI.Colors.Black);
+                MainViewModel.NotificationTextBrush = new SolidColorBrush(Colors.Black);
             }
 
-            ViewModel.NotificationVisibility = Visibility.Visible;
+            MainViewModel.NotificationVisibility = Visibility.Visible;
         }
 
         private void HideNotification()
         {
-            ViewModel.NotificationVisibility = Visibility.Collapsed;
+            MainViewModel.NotificationVisibility = Visibility.Collapsed;
         }
 
         private bool _isDragging = false;
@@ -232,7 +245,7 @@ namespace DeskDuck
 
             // Create new ChatWindow
             _chatWindow = new ChatWindow();
-            var chatAppWindow = _chatWindow.AppWindow;
+            AppWindow chatAppWindow = _chatWindow.AppWindow;
             
             chatAppWindow.Changed += ChatAppWindow_Changed;
 
@@ -252,28 +265,27 @@ namespace DeskDuck
             _chatWindow.Activate();
 
             // Dock duck window next to top-left of chat window
-            var chatPos = chatAppWindow.Position;
-            var chatSize = chatAppWindow.Size;
+            PointInt32 chatPos = chatAppWindow.Position;
+            SizeInt32 chatSize = chatAppWindow.Size;
 
             int newX = chatPos.X - (this.AppWindow.Size.Width / 2);
             int newY = chatPos.Y - (this.AppWindow.Size.Height / 2);
 
-            this.AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
-            ViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
+            this.AppWindow.Move(new PointInt32(newX, newY));
+            MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
         }
 
         private void ChatAppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
         {
             if (args.DidPositionChange && _chatWindow != null)
             {
-                var chatPos = sender.Position;
-                var chatSize = sender.Size;
+                PointInt32 chatPos = sender.Position;
 
                 int newX = chatPos.X - (this.AppWindow.Size.Width / 2);
                 int newY = chatPos.Y - (this.AppWindow.Size.Height / 2);
 
-                this.AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
-                ViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
+                this.AppWindow.Move(new PointInt32(newX, newY));
+                MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
             }
         }
 
@@ -289,7 +301,7 @@ namespace DeskDuck
 
             // Create new SettingsWindow
             _settingsWindow = new SettingsWindow();
-            var settingsAppWindow = _settingsWindow.AppWindow;
+            AppWindow settingsAppWindow = _settingsWindow.AppWindow;
             
             settingsAppWindow.Changed += SettingsAppWindow_Changed;
 
@@ -309,28 +321,27 @@ namespace DeskDuck
             _settingsWindow.Activate();
 
             // Dock duck window next to top-left of settings window
-            var settingsPos = settingsAppWindow.Position;
-            var settingsSize = settingsAppWindow.Size;
+            PointInt32 settingsPos = settingsAppWindow.Position;
+            SizeInt32 settingsSize = settingsAppWindow.Size;
 
             int newX = settingsPos.X - (this.AppWindow.Size.Width / 2);
             int newY = settingsPos.Y - (this.AppWindow.Size.Height / 2);
 
             this.AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
-            ViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
+            MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
         }
 
         private void SettingsAppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
         {
             if (args.DidPositionChange && _settingsWindow != null)
             {
-                var settingsPos = sender.Position;
-                var settingsSize = sender.Size;
+                PointInt32 settingsPos = sender.Position;
 
                 int newX = settingsPos.X - (this.AppWindow.Size.Width / 2);
                 int newY = settingsPos.Y - (this.AppWindow.Size.Height / 2);
 
-                this.AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
-                ViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
+                this.AppWindow.Move(new PointInt32(newX, newY));
+                MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
             }
         }
 
@@ -338,7 +349,7 @@ namespace DeskDuck
         {
             if (_movementManager == null || _isChatActive || _isSettingsActive) return;
 
-            var properties = e.GetCurrentPoint(sender as UIElement).Properties;
+            PointerPointProperties properties = e.GetCurrentPoint(sender as UIElement).Properties;
 
             // Linksklick -> Drag & Drop starten
             if (properties.IsLeftButtonPressed)
@@ -359,7 +370,7 @@ namespace DeskDuck
                 UpdateDuckVisual(DuckState.Waiting);
 
                 // Show context menu
-                Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(sender as FrameworkElement);
+                FlyoutBase.ShowAttachedFlyout(sender as FrameworkElement);
             }
         }
 
@@ -367,15 +378,15 @@ namespace DeskDuck
         {
             if (!_isDragging) return;
 
-            GetCursorPos(out var currentCursorPos);
-            var deltaX = currentCursorPos.X - _dragStartCursorPos.X;
-            var deltaY = currentCursorPos.Y - _dragStartCursorPos.Y;
+            GetCursorPos(out PointStruct currentCursorPos);
+            int deltaX = currentCursorPos.X - _dragStartCursorPos.X;
+            int deltaY = currentCursorPos.Y - _dragStartCursorPos.Y;
 
-            var newX = _dragStartWindowPos.X + deltaX;
-            var newY = _dragStartWindowPos.Y + deltaY;
+            int newX = _dragStartWindowPos.X + deltaX;
+            int newY = _dragStartWindowPos.Y + deltaY;
 
             this.AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
-            ViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
+            MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
         }
 
         private void DuckImage_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -400,7 +411,7 @@ namespace DeskDuck
 
         private void OnDuckPositionChanged(int x, int y)
         {
-            ViewModel.CoordinatesText = $"X: {x}, Y: {y}";
+            MainViewModel.CoordinatesText = $"X: {x}, Y: {y}";
         }
 
         private void UpdateDuckVisual(DuckState state)
@@ -413,7 +424,7 @@ namespace DeskDuck
                 _ => "ms-appx:///Assets/Duck/duck-sitting.gif"
             };
 
-            ViewModel.DuckImageUri = uriString;
+            MainViewModel.DuckImageUri = uriString;
         }
 
         private void ConfigureOverlayWindow()
@@ -421,23 +432,22 @@ namespace DeskDuck
             // Transparenter Hintergrund via custom SystemBackdrop
             SystemBackdrop = new TransparentBackdrop();
 
-            var appWindow = this.AppWindow;
-            var hwnd = WindowNative.GetWindowHandle(this);
+            AppWindow appWindow = this.AppWindow;
+            nint hwnd = WindowNative.GetWindowHandle(this);
 
             // Rahmenlos und immer im Vordergrund
-            var presenter = OverlappedPresenter.CreateForToolWindow();
+            OverlappedPresenter presenter = OverlappedPresenter.CreateForToolWindow();
             presenter.IsAlwaysOnTop = true;
             presenter.SetBorderAndTitleBar(false, false);
             appWindow.SetPresenter(presenter);
 
             // Fenstergröße auf kompakte Ente-Größe setzen
-            appWindow.Resize(new Windows.Graphics.SizeInt32(300, 300));
+            appWindow.Resize(new SizeInt32(300, 300));
 
             // Klickdurchlässig machen NUR für transparente Bereiche.
             // Ohne WS_EX_TRANSPARENT können sichtbare UI-Elemente wie die Ente Mausklicks empfangen.
-            var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-            SetWindowLong(hwnd, GWL_EXSTYLE,
-                exStyle | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+            int exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+            _ = SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
 
             // Register global hotkey and subclass window proc
             try
@@ -448,7 +458,7 @@ namespace DeskDuck
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Hotkey Registration] Failed: {ex.Message}");
+                Debug.WriteLine($"[Hotkey Registration] Failed: {ex.Message}");
             }
         }
 
@@ -458,46 +468,22 @@ namespace DeskDuck
             {
                 if (!_isDragging && !_isChatActive && !_isSettingsActive && _movementManager != null)
                 {
-                    this.DispatcherQueue.TryEnqueue(() =>
+                    DispatcherQueue.TryEnqueue(() =>
                     {
-                        var displayArea = Microsoft.UI.Windowing.DisplayArea.Primary;
-                        var workArea = displayArea.WorkArea;
+                        DisplayArea displayArea = DisplayArea.Primary;
+                        RectInt32 workArea = displayArea.WorkArea;
 
-                        double centerX = workArea.X + (workArea.Width - this.AppWindow.Size.Width) / 2.0;
-                        double centerY = workArea.Y + (workArea.Height - this.AppWindow.Size.Height) / 2.0;
+                        double centerX = workArea.X + (workArea.Width - AppWindow.Size.Width) / 2.0;
+                        double centerY = workArea.Y + (workArea.Height - AppWindow.Size.Height) / 2.0;
 
                         _movementManager.TeleportTo(centerX, centerY);
-                        ViewModel.CoordinatesText = $"X: {(int)centerX}, Y: {(int)centerY}";
+                        MainViewModel.CoordinatesText = $"X: {(int)centerX}, Y: {(int)centerY}";
                     });
                 }
                 return IntPtr.Zero;
             }
 
             return DefSubclassProc(hWnd, uMsg, wParam, lParam);
-        }
-    }
-
-    /// <summary>
-    /// Custom SystemBackdrop that renders a fully transparent background,
-    /// allowing the desktop and other windows to show through.
-    /// </summary>
-    public class TransparentBackdrop : SystemBackdrop
-    {
-        protected override void OnTargetConnected(
-            ICompositionSupportsSystemBackdrop connectedTarget,
-            XamlRoot xamlRoot)
-        {
-            base.OnTargetConnected(connectedTarget, xamlRoot);
-
-            // In WinUI 3, ICompositionSupportsSystemBackdrop is a WinRT interface.
-            // Under the hood, we can retrieve the Windows.UI.Composition.Compositor.
-            if (connectedTarget is Windows.UI.Composition.CompositionObject compositionObject)
-            {
-                var compositor = compositionObject.Compositor;
-                var transparentBrush = compositor.CreateColorBrush(
-                    new Windows.UI.Color { A = 0, R = 0, G = 0, B = 0 });
-                connectedTarget.SystemBackdrop = transparentBrush;
-            }
         }
     }
 }

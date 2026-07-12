@@ -1,10 +1,12 @@
+using DeskDuck.Models;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using Microsoft.UI;
-using Microsoft.UI.Windowing;
-using Microsoft.UI.Xaml;
+using Windows.Graphics;
 
 namespace DeskDuck
 {
@@ -43,23 +45,23 @@ namespace DeskDuck
 
         public SettingsWindow()
         {
-            this.InitializeComponent();
+            InitializeComponent();
 
-            this.Title = "DeskDuck Einstellungen";
-            this.AppWindow.Resize(new Windows.Graphics.SizeInt32(420, 600));
+            Title = "DeskDuck Einstellungen";
+            AppWindow.Resize(new SizeInt32(420, 600));
 
             // Set TitleBar PreferredTheme to match application mode
-            this.AppWindow.TitleBar.PreferredTheme = TitleBarTheme.UseDefaultAppMode;
+            AppWindow.TitleBar.PreferredTheme = TitleBarTheme.UseDefaultAppMode;
 
             // Make the settings window always on top of other windows
-            var presenter = this.AppWindow.Presenter as Microsoft.UI.Windowing.OverlappedPresenter;
+            OverlappedPresenter? presenter = AppWindow.Presenter as OverlappedPresenter;
             if (presenter != null)
             {
                 presenter.IsAlwaysOnTop = true;
             }
 
             // Remove the icon in the top-left corner
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            nint hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             SendMessage(hwnd, WM_SETICON, new IntPtr(ICON_SMALL), IntPtr.Zero);
             SendMessage(hwnd, WM_SETICON, new IntPtr(ICON_BIG), IntPtr.Zero);
             SetClassLong(hwnd, GCLP_HICONSM, IntPtr.Zero);
@@ -76,14 +78,14 @@ namespace DeskDuck
                 if (File.Exists(_configPath))
                 {
                     string json = File.ReadAllText(_configPath);
-                    var settings = JsonSerializer.Deserialize<AppSettingsModel>(json, new JsonSerializerOptions
+                    AppSettingsModel? settings = JsonSerializer.Deserialize<AppSettingsModel>(json, new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
                     });
 
                     if (settings?.Publishers != null)
                     {
-                        var sys = settings.Publishers.SystemMonitor;
+                        SystemMonitorOptions sys = settings.Publishers.SystemMonitor;
                         SysMonitorEnabled.IsOn = sys.Enabled;
                         SysCheckInterval.Value = sys.CheckIntervalSeconds;
                         BatteryEnabled.IsOn = sys.BatteryWarningEnabled;
@@ -93,7 +95,7 @@ namespace DeskDuck
                         RamEnabled.IsOn = sys.RamWarningEnabled;
                         RamThreshold.Value = sys.RamWarningThresholdPercent;
 
-                        var weather = settings.Publishers.Weather;
+                        WeatherPublisherOptions weather = settings.Publishers.Weather;
                         WeatherEnabled.IsOn = weather.Enabled;
                         WeatherInterval.Value = weather.IntervalMinutes;
                         WeatherApiKey.Text = weather.ApiKey;
@@ -103,7 +105,7 @@ namespace DeskDuck
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SettingsWindow] Error loading config: {ex.Message}");
+                Debug.WriteLine($"[SettingsWindow] Error loading config: {ex.Message}");
             }
         }
 
@@ -111,7 +113,7 @@ namespace DeskDuck
         {
             try
             {
-                var settings = new AppSettingsModel
+                AppSettingsModel settings = new()
                 {
                     Publishers = new PublishersSection
                     {
@@ -137,32 +139,21 @@ namespace DeskDuck
                     }
                 };
 
-                var options = new JsonSerializerOptions { WriteIndented = true };
+                JsonSerializerOptions options = new() { WriteIndented = true };
                 string json = JsonSerializer.Serialize(settings, options);
                 File.WriteAllText(_configPath, json);
 
-                this.Close();
+                Close();
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SettingsWindow] Error saving config: {ex.Message}");
+                Debug.WriteLine($"[SettingsWindow] Error saving config: {ex.Message}");
             }
         }
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
-            this.Close();
+            Close();
         }
-    }
-
-    public class AppSettingsModel
-    {
-        public PublishersSection Publishers { get; set; } = new();
-    }
-
-    public class PublishersSection
-    {
-        public SystemMonitorOptions SystemMonitor { get; set; } = new();
-        public WeatherPublisherOptions Weather { get; set; } = new();
     }
 }

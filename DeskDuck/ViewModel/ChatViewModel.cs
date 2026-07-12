@@ -1,42 +1,26 @@
-using System;
+using DeskDuck.Models;
+using DeskDuck.Services;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
+using System.Collections;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
 
-namespace DeskDuck
+namespace DeskDuck.ViewModel
 {
-    public class ChatMessage
-    {
-        public string Text { get; set; } = string.Empty;
-        public bool IsUser { get; set; }
-
-        public HorizontalAlignment Alignment => IsUser ? HorizontalAlignment.Right : HorizontalAlignment.Left;
-        
-        // Push user bubble to the right, AI bubble to the left
-        public Thickness BubbleMargin => IsUser ? new Thickness(60, 4, 12, 4) : new Thickness(12, 4, 60, 4);
-
-        public Brush BackgroundBrush => IsUser 
-            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212)) // Microsoft Blue Accent
-            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 240, 240, 240)); // Modern light gray
-
-        public Brush ForegroundBrush => IsUser 
-            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
-            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
-    }
-
-    public class ChatViewModel : INotifyPropertyChanged
+    public partial class ChatViewModel : INotifyPropertyChanged
     {
         private string _inputText = string.Empty;
         private bool _isTyping;
 
         private string _selectedModel = string.Empty;
 
-        public ObservableCollection<ChatMessage> Messages { get; } = new();
-        public ObservableCollection<string> Models { get; } = new();
+        public ObservableCollection<ChatMessage> Messages { get; } = [];
+        public ObservableCollection<string> Models { get; } = [];
 
         public string SelectedModel
         {
@@ -74,7 +58,7 @@ namespace DeskDuck
                 Text = "Quack! Hallo, ich bin dein DeskDuck KI-Assistent. Wie kann ich dir heute helfen?",
                 IsUser = false
             });
-            
+
             // Add a placeholder until loaded
             Models.Add("Lade Modelle...");
             SelectedModel = Models[0];
@@ -82,13 +66,13 @@ namespace DeskDuck
 
         public async Task LoadModelsAsync()
         {
-            var modelsList = await _aiService.GetLocalModelsAsync();
-            var list = modelsList.ToList();
+            IEnumerable<string> modelsList = await _aiService.GetLocalModelsAsync();
+            List<string> list = modelsList.ToList();
 
             Models.Clear();
             if (list.Count > 0)
             {
-                foreach (var m in list)
+                foreach (string m in list)
                 {
                     Models.Add(m);
                 }

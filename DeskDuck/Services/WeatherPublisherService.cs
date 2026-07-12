@@ -1,33 +1,29 @@
+using DeskDuck.Models;
+using DeskDuck.Publisher;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using System;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 
-namespace DeskDuck
+namespace DeskDuck.Services
 {
-    public class WeatherPublisherService : BackgroundService
+    public partial class WeatherPublisherService(
+        IOptions<WeatherPublisherOptions> options,
+        RabbitMqPublisher publisher) : BackgroundService
     {
-        private readonly IOptions<WeatherPublisherOptions> _options;
-        private readonly RabbitMqPublisher _publisher;
-        private readonly HttpClient _httpClient;
-
-        public WeatherPublisherService(
-            IOptions<WeatherPublisherOptions> options,
-            RabbitMqPublisher publisher)
-        {
-            _options = options;
-            _publisher = publisher;
-            _httpClient = new HttpClient();
-        }
+        private readonly IOptions<WeatherPublisherOptions> _options = options;
+        private readonly RabbitMqPublisher _publisher = publisher;
+        private readonly HttpClient _httpClient = new();
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                var config = _options.Value;
+                WeatherPublisherOptions config = _options.Value;
                 if (config.Enabled)
                 {
                     try
@@ -36,7 +32,7 @@ namespace DeskDuck
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[WeatherPublisher] Error publishing weather: {ex.Message}");
+                        Debug.WriteLine($"[WeatherPublisher] Error publishing weather: {ex.Message}");
                     }
                 }
 
@@ -50,7 +46,7 @@ namespace DeskDuck
         {
             if (string.IsNullOrWhiteSpace(config.ApiKey))
             {
-                System.Diagnostics.Debug.WriteLine("[WeatherPublisher] OpenWeatherMap ApiKey is empty. Skipping weather update.");
+                Debug.WriteLine("[WeatherPublisher] OpenWeatherMap ApiKey is empty. Skipping weather update.");
                 return;
             }
 
@@ -60,8 +56,8 @@ namespace DeskDuck
                 // Auto-detect city via ip-api
                 try
                 {
-                    var geoResponse = await _httpClient.GetStringAsync("http://ip-api.com/json/", cancellationToken);
-                    using var doc = JsonDocument.Parse(geoResponse);
+                    string geoResponse = await _httpClient.GetStringAsync("http://ip-api.com/json/", cancellationToken);
+                    using JsonDocument doc = JsonDocument.Parse(geoResponse);
                     if (doc.RootElement.TryGetProperty("city", out var cityProp))
                     {
                         city = cityProp.GetString() ?? string.Empty;
@@ -69,7 +65,7 @@ namespace DeskDuck
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[WeatherPublisher] Error detecting location: {ex.Message}");
+                    Debug.WriteLine($"[WeatherPublisher] Error detecting location: {ex.Message}");
                     // Fallback to auto-detect failed
                     return;
                 }
@@ -77,7 +73,7 @@ namespace DeskDuck
 
             if (string.IsNullOrWhiteSpace(city))
             {
-                System.Diagnostics.Debug.WriteLine("[WeatherPublisher] Location/city could not be determined.");
+                Debug.WriteLine("[WeatherPublisher] Location/city could not be determined.");
                 return;
             }
 
@@ -85,22 +81,22 @@ namespace DeskDuck
             try
             {
                 string url = $"https://api.openweathermap.org/data/2.5/weather?q={Uri.EscapeDataString(city)}&appid={config.ApiKey}&units=metric&lang=de";
-                var response = await _httpClient.GetStringAsync(url, cancellationToken);
-                
-                using var doc = JsonDocument.Parse(response);
-                var root = doc.RootElement;
-                
+                string response = await _httpClient.GetStringAsync(url, cancellationToken);
+
+                using JsonDocument doc = JsonDocument.Parse(response);
+                JsonElement root = doc.RootElement;
+
                 double temp = 0;
-                if (root.TryGetProperty("main", out var mainProp) && mainProp.TryGetProperty("temp", out var tempProp))
+                if (root.TryGetProperty("main", out JsonElement mainProp) && mainProp.TryGetProperty("temp", out JsonElement tempProp))
                 {
                     temp = tempProp.GetDouble();
                 }
 
                 string description = "Unbekannt";
-                if (root.TryGetProperty("weather", out var weatherProp) && weatherProp.ValueKind == JsonValueKind.Array && weatherProp.GetArrayLength() > 0)
+                if (root.TryGetProperty("weather", out JsonElement weatherProp) && weatherProp.ValueKind == JsonValueKind.Array && weatherProp.GetArrayLength() > 0)
                 {
-                    var firstWeather = weatherProp[0];
-                    if (firstWeather.TryGetProperty("description", out var descProp))
+                    JsonElement firstWeather = weatherProp[0];
+                    if (firstWeather.TryGetProperty("description", out JsonElement descProp))
                     {
                         description = descProp.GetString() ?? "Unbekannt";
                     }
@@ -117,7 +113,7 @@ namespace DeskDuck
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[WeatherPublisher] Error fetching weather from API: {ex.Message}");
+                Debug.WriteLine($"[WeatherPublisher] Error fetching weather from API: {ex.Message}");
             }
         }
 

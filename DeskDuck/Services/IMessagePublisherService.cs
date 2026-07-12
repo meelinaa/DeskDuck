@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace DeskDuck
+namespace DeskDuck.Services
 {
     public interface IMessagePublisherService
     {

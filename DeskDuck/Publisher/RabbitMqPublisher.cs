@@ -1,13 +1,15 @@
 using System;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using DeskDuck.Models;
 using RabbitMQ.Client;
 
-namespace DeskDuck
+namespace DeskDuck.Publisher
 {
-    public class RabbitMqPublisher : IDisposable
+    public partial class RabbitMqPublisher : IDisposable
     {
         private readonly ConnectionFactory _factory;
         private IConnection? _connection;
@@ -42,12 +44,12 @@ namespace DeskDuck
                 // Cleanup old channel/connection if any
                 if (_channel != null)
                 {
-                    try { await _channel.CloseAsync(); } catch { }
+                    try { await _channel.CloseAsync(cancellationToken: cancellationToken); } catch { }
                     _channel = null;
                 }
                 if (_connection != null)
                 {
-                    try { await _connection.CloseAsync(); } catch { }
+                    try { await _connection.CloseAsync(cancellationToken: cancellationToken); } catch { }
                     _connection = null;
                 }
 
@@ -96,11 +98,11 @@ namespace DeskDuck
                     body: body,
                     cancellationToken: cancellationToken);
 
-                System.Diagnostics.Debug.WriteLine($"[RabbitMqPublisher] Published message from source {source} to RabbitMQ");
+                Debug.WriteLine($"[RabbitMqPublisher] Published message from source {source} to RabbitMQ");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[RabbitMqPublisher] Error publishing: {ex.Message}");
+                Debug.WriteLine($"[RabbitMqPublisher] Error publishing: {ex.Message}");
             }
         }
 

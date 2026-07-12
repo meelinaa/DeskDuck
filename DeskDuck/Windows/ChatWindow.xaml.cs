@@ -1,10 +1,13 @@
-using System;
-using System.Runtime.InteropServices;
+using DeskDuck.ViewModel;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
+using System;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using Windows.Graphics;
 using Windows.System;
-using Microsoft.UI;
-using Microsoft.UI.Windowing;
+using WinRT.Interop;
 
 namespace DeskDuck
 {
@@ -41,33 +44,33 @@ namespace DeskDuck
 
         #endregion
 
-        public ChatViewModel ViewModel { get; } = new();
+        public ChatViewModel ChatViewModel { get; } = new();
 
         public ChatWindow()
         {
-            this.InitializeComponent();
+            InitializeComponent();
 
-            this.Title = "Chat mit DeskDuck AI";
-            this.AppWindow.Resize(new Windows.Graphics.SizeInt32(400, 550));
+            Title = "Chat mit DeskDuck AI";
+            AppWindow.Resize(new SizeInt32(400, 550));
 
             // Set TitleBar PreferredTheme to match application mode
-            this.AppWindow.TitleBar.PreferredTheme = TitleBarTheme.UseDefaultAppMode;
+            AppWindow.TitleBar.PreferredTheme = TitleBarTheme.UseDefaultAppMode;
 
             // Make the chat window always on top of other windows
-            var presenter = this.AppWindow.Presenter as Microsoft.UI.Windowing.OverlappedPresenter;
+            var presenter = AppWindow.Presenter as OverlappedPresenter;
             if (presenter != null)
             {
                 presenter.IsAlwaysOnTop = true;
             }
 
             // Remove the icon in the top-left corner
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            var hwnd = WindowNative.GetWindowHandle(this);
             SendMessage(hwnd, WM_SETICON, new IntPtr(ICON_SMALL), IntPtr.Zero);
             SendMessage(hwnd, WM_SETICON, new IntPtr(ICON_BIG), IntPtr.Zero);
             SetClassLong(hwnd, GCLP_HICONSM, IntPtr.Zero);
             SetClassLong(hwnd, GCL_HICON, IntPtr.Zero);
 
-            this.Activated += ChatWindow_Activated;
+            Activated += ChatWindow_Activated;
         }
 
         private bool _isLoaded = false;
@@ -76,7 +79,7 @@ namespace DeskDuck
             if (!_isLoaded)
             {
                 _isLoaded = true;
-                await ViewModel.LoadModelsAsync();
+                await ChatViewModel.LoadModelsAsync();
             }
         }
 
@@ -94,31 +97,22 @@ namespace DeskDuck
             }
         }
 
-        private async System.Threading.Tasks.Task SendCurrentMessage()
+        private async Task SendCurrentMessage()
         {
-            if (string.IsNullOrWhiteSpace(InputTextBox.Text)) return;
-
-            // Send message and get response
-            var sendTask = ViewModel.SendMessageAsync();
-            
-            // Scroll to user message immediately
+            if (string.IsNullOrWhiteSpace(InputTextBox.Text)) 
+                return;
+            var sendTask = ChatViewModel.SendMessageAsync();
             ScrollToBottom();
-            
-            // Wait for completion (typing delay)
             await sendTask;
-
-            // Scroll to AI response
             ScrollToBottom();
-
-            // Focus back to input text box
             InputTextBox.Focus(FocusState.Programmatic);
         }
 
         private void ScrollToBottom()
         {
-            if (ViewModel.Messages.Count > 0)
+            if (ChatViewModel.Messages.Count > 0)
             {
-                MessagesList.ScrollIntoView(ViewModel.Messages[ViewModel.Messages.Count - 1]);
+                MessagesList.ScrollIntoView(ChatViewModel.Messages[ChatViewModel.Messages.Count - 1]);
             }
         }
     }

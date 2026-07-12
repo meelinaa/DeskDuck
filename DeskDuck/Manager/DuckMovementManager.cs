@@ -2,27 +2,14 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
+using DeskDuck.Enums;
+using DeskDuck.Models;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Windows.Graphics;
 
-namespace DeskDuck
-{
-    public enum DuckState
-    {
-        WalkingLeft,
-        WalkingRight,
-        Waiting,
-        Held
-    }
-
-    public class DuckConfig
-    {
-        public double Speed { get; set; } = 2.0;
-        public int MinWaitSeconds { get; set; } = 5;
-        public int MaxWaitSeconds { get; set; } = 15;
-    }
-
+namespace DeskDuck.Manager
+{   
     public class DuckMovementManager
     {
         private readonly AppWindow _appWindow;

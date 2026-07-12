@@ -1,16 +1,22 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using DeskDuck.Models;
+using DeskDuck.Publisher;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Windows.Devices.Power;
 
-namespace DeskDuck
+namespace DeskDuck.Services
 {
-    public class SystemMonitorPublisherService : BackgroundService
+    public partial class SystemMonitorPublisherService(
+        IOptions<SystemMonitorOptions> options,
+        RabbitMqPublisher publisher) : BackgroundService
     {
-        private readonly IOptions<SystemMonitorOptions> _options;
-        private readonly RabbitMqPublisher _publisher;
+        private readonly IOptions<SystemMonitorOptions> _options = options;
+        private readonly RabbitMqPublisher _publisher = publisher;
 
         private bool _batteryWarningTriggered = false;
         private bool _cpuWarningTriggered = false;
@@ -47,23 +53,16 @@ namespace DeskDuck
         {
             public uint dwLowDateTime;
             public uint dwHighDateTime;
-            public ulong ToUInt64() => ((ulong)dwHighDateTime << 32) | dwLowDateTime;
+            public readonly ulong ToUInt64() => ((ulong)dwHighDateTime << 32) | dwLowDateTime;
         }
-        #endregion
 
-        public SystemMonitorPublisherService(
-            IOptions<SystemMonitorOptions> options,
-            RabbitMqPublisher publisher)
-        {
-            _options = options;
-            _publisher = publisher;
-        }
+        #endregion
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                var config = _options.Value;
+                SystemMonitorOptions config = _options.Value;
                 if (config.Enabled)
                 {
                     try
@@ -72,7 +71,7 @@ namespace DeskDuck
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[SystemMonitor] Error during check: {ex.Message}");
+                        Debug.WriteLine($"[SystemMonitor] Error during check: {ex.Message}");
                     }
                 }
 
@@ -163,12 +162,12 @@ namespace DeskDuck
             }
         }
 
-        private double? GetBatteryPercent()
+        private static double? GetBatteryPercent()
         {
             try
             {
-                var aggregateBattery = Windows.Devices.Power.Battery.AggregateBattery;
-                var report = aggregateBattery.GetReport();
+                Battery aggregateBattery = Battery.AggregateBattery;
+                BatteryReport report = aggregateBattery.GetReport();
                 if (report.RemainingCapacityInMilliwattHours.HasValue && report.FullChargeCapacityInMilliwattHours.HasValue)
                 {
                     int full = report.FullChargeCapacityInMilliwattHours.Value;
@@ -181,12 +180,12 @@ namespace DeskDuck
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SystemMonitor] Error getting battery: {ex.Message}");
+                Debug.WriteLine($"[SystemMonitor] Error getting battery: {ex.Message}");
             }
             return null;
         }
 
-        private async Task<double?> GetCpuUsageAsync(CancellationToken cancellationToken)
+        private static async Task<double?> GetCpuUsageAsync(CancellationToken cancellationToken)
         {
             try
             {
@@ -210,12 +209,12 @@ namespace DeskDuck
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SystemMonitor] Error getting CPU usage: {ex.Message}");
+                Debug.WriteLine($"[SystemMonitor] Error getting CPU usage: {ex.Message}");
             }
             return null;
         }
 
-        private double? GetRamUsage()
+        private static double? GetRamUsage()
         {
             try
             {
@@ -227,7 +226,7 @@ namespace DeskDuck
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SystemMonitor] Error getting RAM usage: {ex.Message}");
+                Debug.WriteLine($"[SystemMonitor] Error getting RAM usage: {ex.Message}");
             }
             return null;
         }

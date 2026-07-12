@@ -3,9 +3,9 @@ using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
-namespace DeskDuck
+namespace DeskDuck.ViewModel
 {
-    public class MainViewModel : INotifyPropertyChanged
+    public partial class MainViewModel : INotifyPropertyChanged
     {
         private string _duckImageUri = "ms-appx:///Assets/Duck/duck-sitting.gif";
         private string _notificationTitle = string.Empty;

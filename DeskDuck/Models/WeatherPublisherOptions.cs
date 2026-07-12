@@ -1,4 +1,4 @@
-namespace DeskDuck
+namespace DeskDuck.Models
 {
     public class WeatherPublisherOptions
     {

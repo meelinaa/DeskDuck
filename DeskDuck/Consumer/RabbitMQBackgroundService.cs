@@ -1,55 +1,27 @@
 using System;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using DeskDuck.Models;
 using Microsoft.UI.Dispatching;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
-namespace DeskDuck
+namespace DeskDuck.Consumer
 {
-    public class NotificationMessage
+    public class RabbitMQBackgroundService(
+        DispatcherQueue dispatcherQueue,
+        Action<NotificationMessage> showNotification,
+        Action hideNotification)
     {
-        private string? _title;
-        private string? _message;
-
-        public string? Source { get; set; }
-        public string? Severity { get; set; }
-        public string? Text { get; set; }
-        public string? Link { get; set; }
-
-        public string? Title
-        {
-            get => _title ?? (string.IsNullOrEmpty(Source) ? "Notification" : Source);
-            set => _title = value;
-        }
-
-        public string Message
-        {
-            get => _message ?? Text ?? string.Empty;
-            set => _message = value;
-        }
-    }
-
-    public class RabbitMQBackgroundService
-    {
-        private readonly DispatcherQueue _dispatcherQueue;
-        private readonly Action<NotificationMessage> _showNotification;
-        private readonly Action _hideNotification;
+        private readonly DispatcherQueue _dispatcherQueue = dispatcherQueue;
+        private readonly Action<NotificationMessage> _showNotification = showNotification;
+        private readonly Action _hideNotification = hideNotification;
         private CancellationTokenSource? _cts;
         private IConnection? _connection;
         private IChannel? _channel;
-
-        public RabbitMQBackgroundService(
-            DispatcherQueue dispatcherQueue,
-            Action<NotificationMessage> showNotification,
-            Action hideNotification)
-        {
-            _dispatcherQueue = dispatcherQueue;
-            _showNotification = showNotification;
-            _hideNotification = hideNotification;
-        }
 
         public void Start()
         {
@@ -131,7 +103,7 @@ namespace DeskDuck
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"Error processing message: {ex.Message}");
+                            Debug.WriteLine($"Error processing message: {ex.Message}");
                         }
                         finally
                         {
@@ -155,7 +127,7 @@ namespace DeskDuck
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"RabbitMQ connection failed: {ex.Message}. Retrying in 5 seconds...");
+                    Debug.WriteLine($"RabbitMQ connection failed: {ex.Message}. Retrying in 5 seconds...");
                     await Task.Delay(5000, cancellationToken);
                 }
             }
