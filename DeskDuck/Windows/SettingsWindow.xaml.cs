@@ -1,6 +1,7 @@
 using DeskDuck.Models;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -67,7 +68,7 @@ namespace DeskDuck
             SetClassLong(hwnd, GCLP_HICONSM, IntPtr.Zero);
             SetClassLong(hwnd, GCL_HICON, IntPtr.Zero);
 
-            _configPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+            _configPath = Helper.ConfigHelper.GetConfigPath();
             LoadSettings();
         }
 
@@ -80,8 +81,14 @@ namespace DeskDuck
                     string json = File.ReadAllText(_configPath);
                     AppSettingsModel? settings = JsonSerializer.Deserialize<AppSettingsModel>(json, new JsonSerializerOptions
                     {
-                        PropertyNameCaseInsensitive = true
+                        PropertyNameCaseInsensitive = true,
+                        TypeInfoResolver = AppJsonSerializerContext.Default
                     });
+
+                    if (settings?.General != null)
+                    {
+                        ShowCoordinatesEnabled.IsOn = settings.General.ShowCoordinates;
+                    }
 
                     if (settings?.Publishers != null)
                     {
@@ -109,12 +116,16 @@ namespace DeskDuck
             }
         }
 
-        private void SaveButton_Click(object sender, RoutedEventArgs e)
+        private async void SaveButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
                 AppSettingsModel settings = new()
                 {
+                    General = new GeneralSection
+                    {
+                        ShowCoordinates = ShowCoordinatesEnabled.IsOn
+                    },
                     Publishers = new PublishersSection
                     {
                         SystemMonitor = new SystemMonitorOptions
@@ -139,7 +150,11 @@ namespace DeskDuck
                     }
                 };
 
-                JsonSerializerOptions options = new() { WriteIndented = true };
+                JsonSerializerOptions options = new()
+                {
+                    WriteIndented = true,
+                    TypeInfoResolver = AppJsonSerializerContext.Default 
+                };
                 string json = JsonSerializer.Serialize(settings, options);
                 File.WriteAllText(_configPath, json);
 
@@ -148,6 +163,15 @@ namespace DeskDuck
             catch (Exception ex)
             {
                 Debug.WriteLine($"[SettingsWindow] Error saving config: {ex.Message}");
+                
+                ContentDialog errorDialog = new()
+                {
+                    Title = "Error Saving Settings",
+                    Content = $"An error occurred while saving the settings:\n\n{ex.Message}\n\nPath: {_configPath}",
+                    CloseButtonText = "OK",
+                    XamlRoot = Content.XamlRoot
+                };
+                await errorDialog.ShowAsync();
             }
         }
 

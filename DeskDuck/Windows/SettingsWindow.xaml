@@ -16,6 +16,12 @@
     <Grid Padding="16" RowDefinitions="*,Auto" Background="Transparent">
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="16" Margin="0,0,0,16">
+                <!-- General Header -->
+                <TextBlock Text="Allgemein" FontSize="18" FontWeight="Bold"/>
+                <ToggleSwitch x:Name="ShowCoordinatesEnabled" Header="Koordinaten anzeigen" IsOn="True" />
+
+                <MenuFlyoutSeparator Margin="0,8"/>
+
                 <!-- System Monitor Header -->
                 <TextBlock Text="System Monitor" FontSize="18" FontWeight="Bold"/>
                 
@@ -63,5 +69,4 @@
             </Grid>
         </Border>
     </Grid>
-</Window>
 </Window>

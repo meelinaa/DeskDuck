@@ -1,27 +1,30 @@
-using Microsoft.UI.Composition;
-using Microsoft.UI.Windowing;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
-using System;
-using System.Threading;
-using System.Runtime.InteropServices;
-using WinRT.Interop;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Configuration;
 using DeskDuck.Consumer;
+using DeskDuck.Enums;
+using DeskDuck.Helper;
 using DeskDuck.Manager;
 using DeskDuck.Models;
 using DeskDuck.Publisher;
 using DeskDuck.Services;
 using DeskDuck.ViewModel;
-using DeskDuck.Enums;
-using System.Diagnostics;
-using Windows.UI;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.UI;
-using Windows.Graphics;
 using Microsoft.UI.Input;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Threading;
+using Windows.Graphics;
+using Windows.UI;
+using WinRT.Interop;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -85,9 +88,9 @@ namespace DeskDuck
 
         private SUBCLASSPROC? _subclassProc;
 
-        private DuckMovementManager? _movementManager;
-        private RabbitMQBackgroundService? _rabbitMQService;
-        private IHost? _host;
+        private readonly DuckMovementManager? _movementManager;
+        private readonly RabbitMQBackgroundService? _rabbitMQService;
+        private readonly IHost? _host;
 
         public MainViewModel MainViewModel { get; } = new();
 
@@ -95,6 +98,7 @@ namespace DeskDuck
         {
             InitializeComponent();
             ConfigureOverlayWindow();
+            LoadSettings();
 
             _movementManager = new DuckMovementManager(AppWindow, DispatcherQueue);
             _movementManager.StateChanged += OnDuckStateChanged;
@@ -115,16 +119,17 @@ namespace DeskDuck
                 _host = Host.CreateDefaultBuilder()
                     .ConfigureAppConfiguration((hostingContext, config) =>
                     {
-                        config.SetBasePath(AppContext.BaseDirectory);
-                        config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+                        string configPath = ConfigHelper.GetConfigPath();
+                        config.SetBasePath(Path.GetDirectoryName(configPath)!);
+                        config.AddJsonFile(Path.GetFileName(configPath), optional: false, reloadOnChange: true);
                     })
                     .ConfigureServices((context, services) =>
                     {
                         services.Configure<SystemMonitorOptions>(context.Configuration.GetSection("Publishers:SystemMonitor"));
                         services.Configure<WeatherPublisherOptions>(context.Configuration.GetSection("Publishers:Weather"));
-                        
+
                         services.AddSingleton<RabbitMqPublisher>();
-                        
+
                         services.AddHostedService<SystemMonitorPublisherService>();
                         services.AddHostedService<WeatherPublisherService>();
                     })
@@ -216,7 +221,7 @@ namespace DeskDuck
         }
 
         private bool _isDragging = false;
-        private Windows.Graphics.PointInt32 _dragStartWindowPos;
+        private PointInt32 _dragStartWindowPos;
         private PointStruct _dragStartCursorPos;
 
         private ChatWindow? _chatWindow;
@@ -224,8 +229,11 @@ namespace DeskDuck
         private SettingsWindow? _settingsWindow;
         private bool _isSettingsActive = false;
 
+        private bool _isContextMenuOpen = false;
+
         private void DuckContextMenu_Closed(object sender, object e)
         {
+            _isContextMenuOpen = false;
             // Resume walking only if the chat window and settings window are not opened
             if (!_isChatActive && !_isSettingsActive)
             {
@@ -246,7 +254,7 @@ namespace DeskDuck
             // Create new ChatWindow
             _chatWindow = new ChatWindow();
             AppWindow chatAppWindow = _chatWindow.AppWindow;
-            
+
             chatAppWindow.Changed += ChatAppWindow_Changed;
 
             _chatWindow.Closed += (s, args) =>
@@ -268,10 +276,10 @@ namespace DeskDuck
             PointInt32 chatPos = chatAppWindow.Position;
             SizeInt32 chatSize = chatAppWindow.Size;
 
-            int newX = chatPos.X - (this.AppWindow.Size.Width / 2);
-            int newY = chatPos.Y - (this.AppWindow.Size.Height / 2);
+            int newX = chatPos.X - (AppWindow.Size.Width / 2);
+            int newY = chatPos.Y - (AppWindow.Size.Height / 2);
 
-            this.AppWindow.Move(new PointInt32(newX, newY));
+            AppWindow.Move(new PointInt32(newX, newY));
             MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
         }
 
@@ -281,12 +289,17 @@ namespace DeskDuck
             {
                 PointInt32 chatPos = sender.Position;
 
-                int newX = chatPos.X - (this.AppWindow.Size.Width / 2);
-                int newY = chatPos.Y - (this.AppWindow.Size.Height / 2);
+                int newX = chatPos.X - (AppWindow.Size.Width / 2);
+                int newY = chatPos.Y - (AppWindow.Size.Height / 2);
 
-                this.AppWindow.Move(new PointInt32(newX, newY));
+                AppWindow.Move(new PointInt32(newX, newY));
                 MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
             }
+        }
+
+        private void Exit_Click(object sender, RoutedEventArgs e)
+        {
+            Application.Current.Exit();
         }
 
         private void Settings_Click(object sender, RoutedEventArgs e)
@@ -302,7 +315,7 @@ namespace DeskDuck
             // Create new SettingsWindow
             _settingsWindow = new SettingsWindow();
             AppWindow settingsAppWindow = _settingsWindow.AppWindow;
-            
+
             settingsAppWindow.Changed += SettingsAppWindow_Changed;
 
             _settingsWindow.Closed += (s, args) =>
@@ -312,6 +325,7 @@ namespace DeskDuck
                 _isSettingsActive = false;
                 // Resume movement after closing the settings window
                 _movementManager?.Start();
+                LoadSettings();
             };
 
             // Freeze movement completely during settings
@@ -324,10 +338,10 @@ namespace DeskDuck
             PointInt32 settingsPos = settingsAppWindow.Position;
             SizeInt32 settingsSize = settingsAppWindow.Size;
 
-            int newX = settingsPos.X - (this.AppWindow.Size.Width / 2);
-            int newY = settingsPos.Y - (this.AppWindow.Size.Height / 2);
+            int newX = settingsPos.X - (AppWindow.Size.Width / 2);
+            int newY = settingsPos.Y - (AppWindow.Size.Height / 2);
 
-            this.AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
+            AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
             MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
         }
 
@@ -337,15 +351,15 @@ namespace DeskDuck
             {
                 PointInt32 settingsPos = sender.Position;
 
-                int newX = settingsPos.X - (this.AppWindow.Size.Width / 2);
-                int newY = settingsPos.Y - (this.AppWindow.Size.Height / 2);
+                int newX = settingsPos.X - (AppWindow.Size.Width / 2);
+                int newY = settingsPos.Y - (AppWindow.Size.Height / 2);
 
-                this.AppWindow.Move(new PointInt32(newX, newY));
+                AppWindow.Move(new PointInt32(newX, newY));
                 MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
             }
         }
 
-        private void DuckImage_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void DuckImage_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
             if (_movementManager == null || _isChatActive || _isSettingsActive) return;
 
@@ -359,7 +373,7 @@ namespace DeskDuck
                 UpdateDuckVisual(DuckState.Held);
 
                 GetCursorPos(out _dragStartCursorPos);
-                _dragStartWindowPos = new Windows.Graphics.PointInt32(this.AppWindow.Position.X, this.AppWindow.Position.Y);
+                _dragStartWindowPos = new PointInt32(AppWindow.Position.X, AppWindow.Position.Y);
 
                 (sender as UIElement)?.CapturePointer(e.Pointer);
             }
@@ -374,7 +388,7 @@ namespace DeskDuck
             }
         }
 
-        private void DuckImage_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void DuckImage_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
             if (!_isDragging) return;
 
@@ -385,11 +399,11 @@ namespace DeskDuck
             int newX = _dragStartWindowPos.X + deltaX;
             int newY = _dragStartWindowPos.Y + deltaY;
 
-            this.AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
+            AppWindow.Move(new PointInt32(newX, newY));
             MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
         }
 
-        private void DuckImage_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void DuckImage_PointerReleased(object sender, PointerRoutedEventArgs e)
         {
             if (!_isDragging) return;
 
@@ -397,7 +411,7 @@ namespace DeskDuck
             (sender as UIElement)?.ReleasePointerCapture(e.Pointer);
 
             UpdateDuckVisual(DuckState.Waiting);
-            
+
             if (!_isChatActive)
             {
                 _movementManager?.Resume();
@@ -484,6 +498,36 @@ namespace DeskDuck
             }
 
             return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+        }
+
+        private void LoadSettings()
+        {
+            try
+            {
+                string configPath = ConfigHelper.GetConfigPath();
+                if (File.Exists(configPath))
+                {
+                    string json = File.ReadAllText(configPath);
+                    AppSettingsModel? settings = JsonSerializer.Deserialize<AppSettingsModel>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        TypeInfoResolver = AppJsonSerializerContext.Default
+                    });
+
+                    if (settings?.General != null)
+                    {
+                        MainViewModel.CoordinatesVisibility = settings.General.ShowCoordinates ? Visibility.Visible : Visibility.Collapsed;
+                    }
+                    else
+                    {
+                        MainViewModel.CoordinatesVisibility = Visibility.Visible;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MainWindow] Error loading config: {ex.Message}");
+            }
         }
     }
 }

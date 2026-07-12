@@ -10,7 +10,7 @@
     Title="DeskDuck">
 
 
-    <Grid Background="Transparent" DataContext="{x:Bind ViewModel}">
+    <Grid Background="Transparent" DataContext="{x:Bind MainViewModel}">
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
             
             <!-- Text-Sprechblase über der Ente -->
@@ -56,12 +56,15 @@
                     <MenuFlyout x:Name="DuckContextMenu" Closed="DuckContextMenu_Closed">
                         <MenuFlyoutItem Text="Chat mit KI" Click="ChatWithAI_Click" />
                         <MenuFlyoutItem Text="Einstellungen" Click="Settings_Click" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="Beenden" Click="Exit_Click" />
                     </MenuFlyout>
                 </FlyoutBase.AttachedFlyout>
             </Image>
             <!-- Koordinaten-Anzeige unter der Ente -->
             <TextBlock
                 Text="{Binding CoordinatesText, Mode=OneWay}"
+                Visibility="{Binding CoordinatesVisibility, Mode=OneWay}"
                 FontSize="10"
                 Foreground="Black"
                 HorizontalAlignment="Center"

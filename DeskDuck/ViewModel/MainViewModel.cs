@@ -45,11 +45,18 @@ namespace DeskDuck.ViewModel
         }
 
         private string _coordinatesText = "X: 0, Y: 0";
+        private Visibility _coordinatesVisibility = Visibility.Visible;
 
         public string CoordinatesText
         {
             get => _coordinatesText;
             set => SetProperty(ref _coordinatesText, value);
+        }
+
+        public Visibility CoordinatesVisibility
+        {
+            get => _coordinatesVisibility;
+            set => SetProperty(ref _coordinatesVisibility, value);
         }
 
         public Visibility TitleVisibility
