@@ -17,9 +17,16 @@ namespace DeskDuck.Features.Weather
         public string ApiKey { get; set; } = string.Empty;
 
         /// <summary>
-        /// When non-empty, overrides the auto-detected city with the specified name.
+        /// The default city used when <see cref="OverrideCity"/> is not set.
+        /// Defaults to "Berlin".
+        /// </summary>
+        public string DefaultCity { get; set; } = "Berlin";
+
+        /// <summary>
+        /// When non-empty, overrides <see cref="DefaultCity"/> with the specified name.
         /// Useful for users whose ISP assigns IPs in a different city.
         /// </summary>
-        public string OverrideCity { get; set; } = "Berlin";
+        public string OverrideCity { get; set; } = string.Empty;
     }
 }
+

@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace DeskDuck.Features.Chat
@@ -63,9 +64,10 @@ namespace DeskDuck.Features.Chat
                     SelectedModel = modelName
                 };
             }
-            catch
+            catch (Exception ex)
             {
-                // Client initialization will be retried lazily on the next request.
+                // Swallow: client will be re-initialized lazily on the next request.
+                _logger.LogDebug(ex, "Ollama client initialization failed. Will retry on next request.");
             }
         }
 
@@ -131,15 +133,16 @@ namespace DeskDuck.Features.Chat
                     Stream = false
                 };
 
-                string responseContent = string.Empty;
+                var responseBuilder = new StringBuilder();
                 await foreach (ChatResponseStream? response in _client.ChatAsync(chatRequest))
                 {
                     if (response?.Message?.Content != null)
                     {
-                        responseContent += response.Message.Content;
+                        responseBuilder.Append(response.Message.Content);
                     }
                 }
 
+                string responseContent = responseBuilder.ToString();
                 if (string.IsNullOrWhiteSpace(responseContent))
                 {
                     return "Quack... Ich habe keine Antwort erhalten.";

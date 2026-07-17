@@ -100,11 +100,9 @@ namespace DeskDuck.Features.Weather
                 return;
             }
 
-            string city = config.OverrideCity;
-            if (string.IsNullOrWhiteSpace(city))
-            {
-                city = "Berlin";
-            }
+            string city = !string.IsNullOrWhiteSpace(config.OverrideCity)
+                ? config.OverrideCity
+                : config.DefaultCity;
             try
             {
                 string url = $"https://api.openweathermap.org/data/2.5/weather?q={Uri.EscapeDataString(city)}&appid={config.ApiKey}&units=metric&lang=de";

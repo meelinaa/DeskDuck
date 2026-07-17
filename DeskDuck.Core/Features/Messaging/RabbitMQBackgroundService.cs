@@ -1,4 +1,3 @@
-using CommunityToolkit.Mvvm.Messaging;
 using DeskDuck.Messages;
 using DeskDuck.Models;
 using Microsoft.Extensions.Hosting;
@@ -12,6 +11,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Messaging;
 
 namespace DeskDuck.Features.Messaging
 {
