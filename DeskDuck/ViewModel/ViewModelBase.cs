@@ -6,7 +6,7 @@ namespace DeskDuck.ViewModel
     /// <summary>
     /// Base class for all ViewModels, implementing INotifyPropertyChanged.
     /// </summary>
-    public class ViewModelBase : INotifyPropertyChanged
+    public partial class ViewModelBase : INotifyPropertyChanged
     {
         /// <inheritdoc/>
         public event PropertyChangedEventHandler? PropertyChanged;

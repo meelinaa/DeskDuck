@@ -1,14 +1,9 @@
-using DeskDuck.Helper;
-using DeskDuck.Models;
 using DeskDuck.ViewModel;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System;
 using System.Diagnostics;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text.Json;
 using Windows.Graphics;
 
 namespace DeskDuck
@@ -21,15 +16,16 @@ namespace DeskDuck
     public sealed partial class SettingsWindow : Window
     {
         /// <summary>Gets the view model driving this settings window.</summary>
-        public SettingsViewModel ViewModel { get; } = new();
+        public SettingsViewModel ViewModel { get; }
 
         /// <summary>
         /// Initializes the settings window: sets the title, fixes the size, keeps it always
         /// on top, removes the window icon, and loads the current settings into the view model.
         /// </summary>
-        public SettingsWindow()
+        public SettingsWindow(SettingsViewModel viewModel)
         {
             InitializeComponent();
+            ViewModel = viewModel;
 
             Title = "DeskDuck Einstellungen";
             AppWindow.Resize(new SizeInt32(420, 600));
@@ -58,7 +54,7 @@ namespace DeskDuck
             }
             catch (Exception ex)
             {
-                string configPath = ConfigHelper.GetConfigPath();
+                string configPath = ViewModel.ConfigPath;
                 Debug.WriteLine($"[SettingsWindow] Error saving config: {ex.Message}");
 
                 ContentDialog errorDialog = new()

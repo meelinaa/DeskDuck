@@ -1,35 +1,36 @@
 using DeskDuck.Models;
+using Microsoft.Extensions.Options;
 using OllamaSharp;
 using OllamaSharp.Models;
 using OllamaSharp.Models.Chat;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace DeskDuck.Services
 {
     /// <summary>
     /// Wraps the OllamaSharp client to provide AI chat functionality backed by a locally
-    /// running Ollama instance. Model name, server URL, and system prompt are loaded from
-    /// config.json at startup and fall back to hardcoded defaults if the file is absent.
+    /// running Ollama instance. Configuration is injected via <see cref="IOptions{OllamaOptions}"/>.
     /// </summary>
-    public class OllamaChatService
+    public class OllamaChatService : IOllamaChatService
     {
-        private string _modelName = "llama3.2:latest";
-        private string _ollamaUrl = "http://localhost:11434";
-        private string _modelPromt = string.Empty;
+        private readonly string _modelName;
+        private readonly string _ollamaUrl;
+        private readonly string _modelPromt;
         private OllamaApiClient? _client;
 
         /// <summary>
-        /// Loads configuration from disk and initializes the Ollama API client.
+        /// Initializes the service with the injected Ollama options and creates the API client.
         /// </summary>
-        public OllamaChatService()
+        public OllamaChatService(IOptions<OllamaOptions> options)
         {
-            LoadConfig();
+            var config = options.Value;
+            _modelName = !string.IsNullOrEmpty(config.Model) ? config.Model : "llama3.2:latest";
+            _ollamaUrl = !string.IsNullOrEmpty(config.Url) ? config.Url : "http://localhost:11434";
+            _modelPromt = config.Prompt ?? string.Empty;
             InitClient();
         }
 
@@ -53,36 +54,6 @@ namespace DeskDuck.Services
             }
         }
 
-        /// <summary>
-        /// Reads Ollama configuration from the central appsettings.json.
-        /// Silently falls back to defaults if the file does not exist or cannot be parsed.
-        /// </summary>
-        private void LoadConfig()
-        {
-            try
-            {
-                var settings = Helper.ConfigHelper.LoadSettings();
-                if (settings?.Ollama != null)
-                {
-                    if (!string.IsNullOrEmpty(settings.Ollama.Model))
-                    {
-                        _modelName = settings.Ollama.Model;
-                    }
-                    if (!string.IsNullOrEmpty(settings.Ollama.Url))
-                    {
-                        _ollamaUrl = settings.Ollama.Url;
-                    }
-                    if (!string.IsNullOrEmpty(settings.Ollama.Prompt))
-                    {
-                        _modelPromt = settings.Ollama.Prompt;
-                    }
-                }
-            }
-            catch
-            {
-                // Fall back to default field initializers.
-            }
-        }
 
         /// <summary>
         /// Returns the names of all locally available Ollama models.

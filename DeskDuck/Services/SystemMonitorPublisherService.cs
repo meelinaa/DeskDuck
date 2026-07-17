@@ -1,13 +1,12 @@
-using System;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
+using DeskDuck.Helper;
 using DeskDuck.Models;
 using DeskDuck.Publisher;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using DeskDuck.Helper;
+using System;
+using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using Windows.Devices.Power;
 
 namespace DeskDuck.Services

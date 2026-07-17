@@ -1,14 +1,11 @@
-using DeskDuck.Helper;
 using DeskDuck.ViewModel;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using System;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Windows.Graphics;
 using Windows.System;
-using WinRT.Interop;
 
 namespace DeskDuck
 {
@@ -19,16 +16,18 @@ namespace DeskDuck
     public sealed partial class ChatWindow : Window
     {
         /// <summary>The view model that drives the chat UI.</summary>
-        public ChatViewModel ChatViewModel { get; } = new();
+        public ChatViewModel ChatViewModel { get; }
 
         /// <summary>
         /// Initializes the chat window: sets the title, fixes the size, keeps it always on top,
         /// and clears the window icon via Win32 messages so the title bar is uncluttered.
         /// Model loading is deferred to the first Activated event to avoid blocking the constructor.
         /// </summary>
-        public ChatWindow()
+        public ChatWindow(ChatViewModel chatViewModel)
         {
             InitializeComponent();
+
+            ChatViewModel = chatViewModel;
 
             Title = "Chat mit DeskDuck AI";
             AppWindow.Resize(new SizeInt32(400, 550));

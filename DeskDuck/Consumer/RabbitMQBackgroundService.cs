@@ -1,53 +1,36 @@
+using DeskDuck.Models;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 using System;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using DeskDuck.Models;
-using Microsoft.UI.Dispatching;
-using RabbitMQ.Client;
-using RabbitMQ.Client.Events;
 
 namespace DeskDuck.Consumer
 {
     /// <summary>
     /// Background service that maintains a persistent RabbitMQ consumer connection and
-    /// dispatches incoming notification messages to the UI thread.
+    /// dispatches incoming notification messages to the UI via <see cref="INotificationDispatcher"/>.
     /// Automatically reconnects on connection failures with a 5-second retry delay.
+    /// UI thread marshaling is handled by the <see cref="INotificationDispatcher"/> implementation.
     /// </summary>
     public class RabbitMQBackgroundService(
-        DispatcherQueue dispatcherQueue,
-        Action<NotificationMessage> showNotification,
-        Action hideNotification,
-        RabbitMqOptions rabbitMqOptions)
+        IOptions<RabbitMqOptions> options,
+        INotificationDispatcher dispatcher) : BackgroundService
     {
-        private readonly DispatcherQueue _dispatcherQueue = dispatcherQueue;
-        private readonly Action<NotificationMessage> _showNotification = showNotification;
-        private readonly Action _hideNotification = hideNotification;
-        private readonly RabbitMqOptions _rabbitMqOptions = rabbitMqOptions;
-        private CancellationTokenSource? _cts;
+        private readonly RabbitMqOptions _rabbitMqOptions = options.Value;
+        private readonly INotificationDispatcher _dispatcher = dispatcher;
         private IConnection? _connection;
         private IChannel? _channel;
-
-        private readonly string _queue = rabbitMqOptions.QueueName;
-
-        /// <summary>
-        /// Starts the background listener by firing off the consumer loop on a thread-pool thread.
-        /// </summary>
-        public void Start()
+        private readonly string _queue = options.Value.QueueName;
+        public override async Task StopAsync(CancellationToken cancellationToken)
         {
-            _cts = new CancellationTokenSource();
-            Task.Run(() => ListenForNotificationsAsync(_cts.Token));
-        }
-
-        /// <summary>
-        /// Signals the consumer loop to stop and gracefully closes the channel and connection.
-        /// </summary>
-        public async Task StopAsync()
-        {
-            _cts?.Cancel();
             await CleanupRabbitMqResourcesAsync();
+            await base.StopAsync(cancellationToken);
         }
 
         /// <summary>
@@ -102,7 +85,7 @@ namespace DeskDuck.Consumer
         /// before being acknowledged so RabbitMQ does not deliver the next one prematurely.
         /// Uses prefetch count of 1 to guarantee sequential, non-overlapping notifications.
         /// </summary>
-        private async Task ListenForNotificationsAsync(CancellationToken cancellationToken)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var factory = new ConnectionFactory()
             {
@@ -111,14 +94,14 @@ namespace DeskDuck.Consumer
                 Password = _rabbitMqOptions.Password
             };
 
-            while (!cancellationToken.IsCancellationRequested)
+            while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
                     await CleanupRabbitMqResourcesAsync();
 
-                    _connection = await factory.CreateConnectionAsync(cancellationToken);
-                    _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
+                    _connection = await factory.CreateConnectionAsync(stoppingToken);
+                    _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
 
                     await _channel.QueueDeclareAsync(
                         queue: _queue,
@@ -126,9 +109,9 @@ namespace DeskDuck.Consumer
                         exclusive: false,
                         autoDelete: false,
                         arguments: null,
-                        cancellationToken: cancellationToken);
+                        cancellationToken: stoppingToken);
 
-                    await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, cancellationToken: cancellationToken);
+                    await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, cancellationToken: stoppingToken);
 
                     var consumer = new AsyncEventingBasicConsumer(_channel);
                     consumer.ReceivedAsync += async (model, ea) =>
@@ -144,17 +127,11 @@ namespace DeskDuck.Consumer
 
                             if (notification != null)
                             {
-                                _dispatcherQueue.TryEnqueue(() =>
-                                {
-                                    _showNotification(notification);
-                                });
+                                _dispatcher.Show(notification);
 
-                                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
 
-                                _dispatcherQueue.TryEnqueue(() =>
-                                {
-                                    _hideNotification();
-                                });
+                                _dispatcher.Hide();
                             }
                         }
                         catch (Exception ex)
@@ -167,7 +144,7 @@ namespace DeskDuck.Consumer
                             {
                                 if (_channel != null && _channel.IsOpen)
                                 {
-                                    await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: cancellationToken);
+                                    await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
                                 }
                             }
                             catch (Exception ex)
@@ -181,17 +158,17 @@ namespace DeskDuck.Consumer
                         queue: _queue,
                         autoAck: false,
                         consumer: consumer,
-                        cancellationToken: cancellationToken);
+                        cancellationToken: stoppingToken);
 
-                    while (_connection.IsOpen && !cancellationToken.IsCancellationRequested)
+                    while (_connection.IsOpen && !stoppingToken.IsCancellationRequested)
                     {
-                        await Task.Delay(1000, cancellationToken);
+                        await Task.Delay(1000, stoppingToken);
                     }
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"RabbitMQ connection failed: {ex.Message}. Retrying in 5 seconds...");
-                    await Task.Delay(5000, cancellationToken);
+                    await Task.Delay(5000, stoppingToken);
                 }
             }
         }

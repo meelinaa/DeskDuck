@@ -111,7 +111,5 @@ namespace DeskDuck.Services
                 Debug.WriteLine($"[WeatherPublisher] Error fetching weather from API: {ex.Message}");
             }
         }
-
-        // IHttpClientFactory manages client lifetimes. Base class dispose will clean up BackgroundService.
     }
 }

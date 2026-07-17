@@ -3,12 +3,9 @@ using DeskDuck.Enums;
 using DeskDuck.Helper;
 using DeskDuck.Manager;
 using DeskDuck.Models;
-using DeskDuck.Publisher;
-using DeskDuck.Services;
 using DeskDuck.ViewModel;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Microsoft.UI;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
@@ -18,10 +15,6 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System;
 using System.Diagnostics;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text.Json;
-using System.Threading;
 using Windows.Graphics;
 using Windows.UI;
 using WinRT.Interop;
@@ -32,14 +25,13 @@ namespace DeskDuck
     /// Transparent overlay window that displays a walking duck on the desktop.
     /// The window is click-through so you can interact with apps underneath.
     /// </summary>
-    public sealed partial class MainWindow : Window
+    public sealed partial class MainWindow : Window, INotificationDispatcher
     {
         private Win32WindowHelper.SUBCLASSPROC? _subclassProc;
 
-        private readonly DuckMovementManager? _movementManager;
-        private readonly RabbitMQBackgroundService? _rabbitMQService;
-        private readonly IHost? _host;
-        private AppSettingsModel _settings = new();
+        private readonly DuckMovementManager _movementManager;
+        private readonly ISettingsRepository _settingsRepository;
+        private readonly IServiceProvider _serviceProvider;
 
         public MainViewModel MainViewModel { get; } = new();
 
@@ -47,54 +39,31 @@ namespace DeskDuck
         /// Initializes the main window, configures the overlay, loads settings,
         /// starts duck movement, and launches all background services.
         /// </summary>
-        public MainWindow()
+        public MainWindow(
+            IServiceProvider serviceProvider,
+            ISettingsRepository settingsRepository,
+            IOptions<DuckConfig> duckConfig,
+            IOptionsMonitor<GeneralSection> generalConfig)
         {
+            _serviceProvider = serviceProvider;
+            _settingsRepository = settingsRepository;
+
             InitializeComponent();
             ConfigureOverlayWindow();
-            LoadSettings();
 
-            _movementManager = new DuckMovementManager(AppWindow, DispatcherQueue);
+            MainViewModel.CoordinatesVisibility = generalConfig.CurrentValue.ShowCoordinates ? Visibility.Visible : Visibility.Collapsed;
+            generalConfig.OnChange(config =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    MainViewModel.CoordinatesVisibility = config.ShowCoordinates ? Visibility.Visible : Visibility.Collapsed;
+                });
+            });
+
+            _movementManager = new DuckMovementManager(AppWindow, DispatcherQueue, duckConfig);
             _movementManager.StateChanged += OnDuckStateChanged;
             _movementManager.PositionChanged += OnDuckPositionChanged;
             _movementManager.Start();
-
-            _rabbitMQService = new RabbitMQBackgroundService(
-                DispatcherQueue,
-                ShowNotification,
-                HideNotification,
-                _settings.RabbitMQ
-            );
-            _rabbitMQService.Start();
-
-            try
-            {
-                _host = Host.CreateDefaultBuilder()
-                    .ConfigureAppConfiguration((hostingContext, config) =>
-                    {
-                        string configPath = ConfigHelper.GetConfigPath();
-                        config.SetBasePath(Path.GetDirectoryName(configPath)!);
-                        config.AddJsonFile(Path.GetFileName(configPath), optional: false, reloadOnChange: true);
-                    })
-                    .ConfigureServices((context, services) =>
-                    {
-                        services.Configure<SystemMonitorOptions>(context.Configuration.GetSection("Publishers:SystemMonitor"));
-                        services.Configure<WeatherPublisherOptions>(context.Configuration.GetSection("Publishers:Weather"));
-                        services.Configure<RabbitMqOptions>(context.Configuration.GetSection("RabbitMQ"));
-
-                        services.AddHttpClient();
-                        services.AddSingleton<RabbitMqPublisher>();
-
-                        services.AddHostedService<SystemMonitorPublisherService>();
-                        services.AddHostedService<WeatherPublisherService>();
-                    })
-                    .Build();
-
-                _host.Start();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[Host] Failed to start: {ex.Message}");
-            }
 
             Closed += OnWindowClosed;
         }
@@ -133,70 +102,53 @@ namespace DeskDuck
                 Debug.WriteLine($"[Movement Cleanup] Error: {ex.Message}");
             }
 
-            try
-            {
-                if (_host != null)
-                {
-                    using (CancellationTokenSource cts = new(TimeSpan.FromSeconds(5)))
-                    {
-                        await _host.StopAsync(cts.Token);
-                    }
-                    _host.Dispose();
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[Host] Error during shutdown: {ex.Message}");
-            }
 
-            try
-            {
-                if (_rabbitMQService != null)
-                {
-                    await _rabbitMQService.StopAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[RabbitMQService] Error during shutdown: {ex.Message}");
-            }
+
         }
 
         /// <summary>
         /// Displays an incoming notification by setting its title, message, and a color-coded
         /// text brush based on severity ("warning" → red, "info" or weather source → blue,
         /// everything else → black).
+        /// Implements <see cref="INotificationDispatcher.Show"/>.
         /// </summary>
-        private void ShowNotification(NotificationMessage message)
+        public void Show(NotificationMessage message)
         {
-            MainViewModel.NotificationTitle = message.Title ?? string.Empty;
-            MainViewModel.NotificationMessage = message.Message;
-
-            string severity = message.Severity?.ToLowerInvariant() ?? string.Empty;
-            string source = message.Source?.ToLowerInvariant() ?? string.Empty;
-
-            if (severity == "warning")
+            DispatcherQueue.TryEnqueue(() =>
             {
-                MainViewModel.NotificationTextBrush = new SolidColorBrush(Color.FromArgb(255, 209, 52, 56));
-            }
-            else if (severity == "info" || source == "weather")
-            {
-                MainViewModel.NotificationTextBrush = new SolidColorBrush(Color.FromArgb(255, 0, 120, 212));
-            }
-            else
-            {
-                MainViewModel.NotificationTextBrush = new SolidColorBrush(Colors.Black);
-            }
+                MainViewModel.NotificationTitle = message.Title ?? string.Empty;
+                MainViewModel.NotificationMessage = message.Message;
 
-            MainViewModel.NotificationVisibility = Visibility.Visible;
+                string severity = message.Severity?.ToLowerInvariant() ?? string.Empty;
+                string source = message.Source?.ToLowerInvariant() ?? string.Empty;
+
+                if (severity == "warning")
+                {
+                    MainViewModel.NotificationTextBrush = new SolidColorBrush(Color.FromArgb(255, 209, 52, 56));
+                }
+                else if (severity == "info" || source == "weather")
+                {
+                    MainViewModel.NotificationTextBrush = new SolidColorBrush(Color.FromArgb(255, 0, 120, 212));
+                }
+                else
+                {
+                    MainViewModel.NotificationTextBrush = new SolidColorBrush(Colors.Black);
+                }
+
+                MainViewModel.NotificationVisibility = Visibility.Visible;
+            });
         }
 
         /// <summary>
         /// Hides the notification overlay by collapsing its visibility.
+        /// Implements <see cref="INotificationDispatcher.Hide"/>.
         /// </summary>
-        private void HideNotification()
+        public void Hide()
         {
-            MainViewModel.NotificationVisibility = Visibility.Collapsed;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                MainViewModel.NotificationVisibility = Visibility.Collapsed;
+            });
         }
 
         private bool _isDragging = false;
@@ -238,7 +190,8 @@ namespace DeskDuck
                 return;
             }
 
-            _chatWindow = new ChatWindow();
+            var chatViewModel = _serviceProvider.GetRequiredService<ChatViewModel>();
+            _chatWindow = new ChatWindow(chatViewModel);
             AppWindow chatAppWindow = _chatWindow.AppWindow;
 
             chatAppWindow.Changed += ChatAppWindow_Changed;
@@ -306,7 +259,8 @@ namespace DeskDuck
                 return;
             }
 
-            _settingsWindow = new SettingsWindow();
+            var settingsViewModel = _serviceProvider.GetRequiredService<SettingsViewModel>();
+            _settingsWindow = new SettingsWindow(settingsViewModel);
             AppWindow settingsAppWindow = _settingsWindow.AppWindow;
 
             settingsAppWindow.Changed += SettingsAppWindow_Changed;
@@ -317,7 +271,6 @@ namespace DeskDuck
                 _settingsWindow = null;
                 _isSettingsActive = false;
                 _movementManager?.Start();
-                LoadSettings();
             };
 
             _movementManager?.Stop();
@@ -522,31 +475,5 @@ namespace DeskDuck
             return Win32WindowHelper.DefaultSubclassProc(hWnd, uMsg, wParam, lParam);
         }
 
-        /// <summary>
-        /// Reads the JSON configuration file and applies relevant settings to the view model.
-        /// Currently controls whether the coordinate overlay is visible, defaulting to visible
-        /// if the config file is missing or the general settings section is absent.
-        /// </summary>
-        private void LoadSettings()
-        {
-            try
-            {
-                var settings = ConfigHelper.LoadSettings();
-                _settings = settings;
-
-                if (settings.General != null)
-                {
-                    MainViewModel.CoordinatesVisibility = settings.General.ShowCoordinates ? Visibility.Visible : Visibility.Collapsed;
-                }
-                else
-                {
-                    MainViewModel.CoordinatesVisibility = Visibility.Visible;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[MainWindow] Error loading config: {ex.Message}");
-            }
-        }
     }
 }

@@ -1,12 +1,12 @@
+using DeskDuck.Models;
+using Microsoft.Extensions.Options;
+using RabbitMQ.Client;
 using System;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using DeskDuck.Models;
-using Microsoft.Extensions.Options;
-using RabbitMQ.Client;
 
 namespace DeskDuck.Publisher
 {
@@ -16,7 +16,7 @@ namespace DeskDuck.Publisher
     /// on the first publish and reused for all subsequent calls. A semaphore ensures that
     /// concurrent publishers do not race to (re-)establish the connection.
     /// </summary>
-    public partial class RabbitMqPublisher : IDisposable
+    public partial class RabbitMqPublisher : IRabbitMqPublisher, IDisposable
     {
         private readonly ConnectionFactory _factory;
         private IConnection? _connection;

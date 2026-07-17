@@ -1,11 +1,9 @@
 using DeskDuck.Enums;
 using DeskDuck.Models;
+using Microsoft.Extensions.Options;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using System;
-using System.Diagnostics;
-using System.IO;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Windows.Graphics;
 
@@ -23,7 +21,7 @@ namespace DeskDuck.Manager
         private readonly AppWindow _appWindow;
         private readonly DispatcherQueueTimer _movementTimer;
         private readonly Random _random = new();
-        private DuckConfig _config = new();
+        private readonly DuckConfig _config;
 
         private double _currentX;
         private double _currentY;
@@ -89,14 +87,14 @@ namespace DeskDuck.Manager
         }
 
         /// <summary>
-        /// Initializes the movement manager by loading the duck configuration, placing the duck
-        /// at the center of the primary display, and setting up a ~60 FPS dispatcher timer
+        /// Initializes the movement manager with injected configuration, places the duck
+        /// at the center of the primary display, and sets up a ~60 FPS dispatcher timer
         /// that drives each movement step.
         /// </summary>
-        public DuckMovementManager(AppWindow appWindow, DispatcherQueue dispatcherQueue)
+        public DuckMovementManager(AppWindow appWindow, DispatcherQueue dispatcherQueue, IOptions<DuckConfig> config)
         {
             _appWindow = appWindow;
-            LoadConfig();
+            _config = config.Value;
 
             var display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
             _currentX = (display.OuterBounds.Width - _appWindow.Size.Width) / 2;
@@ -106,22 +104,6 @@ namespace DeskDuck.Manager
             _movementTimer = dispatcherQueue.CreateTimer();
             _movementTimer.Interval = TimeSpan.FromMilliseconds(16);
             _movementTimer.Tick += OnTimerTick;
-        }
-
-        /// <summary>
-        /// Reads movement parameters (speed, wait range) from the central appsettings.json.
-        /// Silently falls back to the compiled defaults on any error.
-        /// </summary>
-        private void LoadConfig()
-        {
-            try
-            {
-                _config = Helper.ConfigHelper.LoadSettings().Duck;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[DuckMovementManager] Error loading config: {ex.Message}");
-            }
         }
 
         /// <summary>

@@ -1,13 +1,10 @@
 using DeskDuck.Models;
 using DeskDuck.Services;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace DeskDuck.ViewModel
@@ -72,14 +69,16 @@ namespace DeskDuck.ViewModel
         /// </summary>
         public Visibility TypingIndicatorVisibility => IsTyping ? Visibility.Visible : Visibility.Collapsed;
 
-        private readonly OllamaChatService _aiService = new();
+        private readonly IOllamaChatService _aiService;
 
         /// <summary>
         /// Initializes the view model with an initial greeting message from the duck
         /// and a placeholder model entry while the real model list is loading asynchronously.
         /// </summary>
-        public ChatViewModel()
+        public ChatViewModel(IOllamaChatService aiService)
         {
+            _aiService = aiService;
+
             Messages.Add(new ChatMessage
             {
                 Text = "Quack! Hallo, ich bin dein DeskDuck KI-Assistent. Wie kann ich dir heute helfen?",

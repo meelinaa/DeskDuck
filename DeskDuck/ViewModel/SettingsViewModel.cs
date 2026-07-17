@@ -1,18 +1,19 @@
-using System;
-using System.IO;
-using System.Text.Json;
-using System.Diagnostics;
-using DeskDuck.Models;
 using DeskDuck.Helper;
+using DeskDuck.Models;
+using System;
+using System.Diagnostics;
 
 namespace DeskDuck.ViewModel
 {
     /// <summary>
     /// View model for the settings window. Exposes bindable properties for all settings and
-    /// delegates persistence to ConfigHelper.
+    /// delegates persistence to ISettingsRepository.
     /// </summary>
-    public class SettingsViewModel : ViewModelBase
+    public partial class SettingsViewModel(ISettingsRepository settingsRepository) : ViewModelBase
     {
+        private readonly ISettingsRepository _settingsRepository = settingsRepository;
+
+        public string ConfigPath => _settingsRepository.GetConfigPath();
         private bool _showCoordinatesEnabled = true;
         private bool _sysMonitorEnabled = true;
         private double _sysCheckInterval = 10;
@@ -125,7 +126,7 @@ namespace DeskDuck.ViewModel
         {
             try
             {
-                AppSettingsModel settings = ConfigHelper.LoadSettings();
+                AppSettingsModel settings = _settingsRepository.LoadSettings();
 
                 ShowCoordinatesEnabled = settings.General.ShowCoordinates;
 
@@ -160,8 +161,7 @@ namespace DeskDuck.ViewModel
         /// </summary>
         public void Save()
         {
-            string configPath = ConfigHelper.GetConfigPath();
-            AppSettingsModel settings = ConfigHelper.LoadSettings();
+            AppSettingsModel settings = _settingsRepository.LoadSettings();
 
             settings.General = new GeneralSection
             {
@@ -190,13 +190,7 @@ namespace DeskDuck.ViewModel
                 }
             };
 
-            JsonSerializerOptions options = new()
-            {
-                WriteIndented = true,
-                TypeInfoResolver = AppJsonSerializerContext.Default
-            };
-            string json = JsonSerializer.Serialize(settings, options);
-            File.WriteAllText(configPath, json);
+            _settingsRepository.SaveSettings(settings);
         }
     }
 }

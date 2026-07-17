@@ -1,25 +1,19 @@
+using DeskDuck.Models;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
-using System.Diagnostics;
-using DeskDuck.Models;
 
 namespace DeskDuck.Helper
 {
     /// <summary>
-    /// Provides helper methods for resolving the application configuration file path and loading settings.
+    /// Provides methods for resolving the application configuration file path and loading/saving settings.
     /// Settings are stored per-user in %LocalAppData%\DeskDuck so that they survive
     /// application updates without being overwritten.
     /// </summary>
-    public static class ConfigHelper
+    public class SettingsRepository : ISettingsRepository
     {
-        /// <summary>
-        /// Returns the path to the user-specific appsettings.json file, creating the
-        /// DeskDuck folder if it does not exist and seeding it from the bundled default
-        /// config when the user file is absent. Falls back to an empty JSON object if
-        /// no default config is bundled with the application.
-        /// </summary>
-        public static string GetConfigPath()
+        public string GetConfigPath()
         {
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string duckFolder = Path.Combine(appData, "DeskDuck");
@@ -47,11 +41,7 @@ namespace DeskDuck.Helper
             return userConfig;
         }
 
-        /// <summary>
-        /// Loads the user settings from the central appsettings.json file.
-        /// NativeAOT-safe.
-        /// </summary>
-        public static AppSettingsModel LoadSettings()
+        public AppSettingsModel LoadSettings()
         {
             try
             {
@@ -68,9 +58,28 @@ namespace DeskDuck.Helper
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[ConfigHelper] Error loading config: {ex.Message}");
+                Debug.WriteLine($"[SettingsRepository] Error loading config: {ex.Message}");
             }
             return new AppSettingsModel();
+        }
+
+        public void SaveSettings(AppSettingsModel settings)
+        {
+            try
+            {
+                string configPath = GetConfigPath();
+                JsonSerializerOptions options = new()
+                {
+                    WriteIndented = true,
+                    TypeInfoResolver = AppJsonSerializerContext.Default
+                };
+                string json = JsonSerializer.Serialize(settings, options);
+                File.WriteAllText(configPath, json);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SettingsRepository] Error saving config: {ex.Message}");
+            }
         }
     }
 }
