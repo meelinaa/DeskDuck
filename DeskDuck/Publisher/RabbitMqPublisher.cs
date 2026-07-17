@@ -5,10 +5,17 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using DeskDuck.Models;
+using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 
 namespace DeskDuck.Publisher
 {
+    /// <summary>
+    /// Singleton RabbitMQ publisher that sends <see cref="NotificationMessage"/> payloads
+    /// to the <c>deskduck.notifications</c> queue. Connection and channel are created lazily
+    /// on the first publish and reused for all subsequent calls. A semaphore ensures that
+    /// concurrent publishers do not race to (re-)establish the connection.
+    /// </summary>
     public partial class RabbitMqPublisher : IDisposable
     {
         private readonly ConnectionFactory _factory;
@@ -16,16 +23,28 @@ namespace DeskDuck.Publisher
         private IChannel? _channel;
         private readonly SemaphoreSlim _connectionSemaphore = new(1, 1);
 
-        public RabbitMqPublisher()
+        private readonly string _queueName;
+
+        /// <summary>
+        /// Initializes the publisher with the injected RabbitMQ options.
+        /// </summary>
+        public RabbitMqPublisher(IOptions<RabbitMqOptions> options)
         {
+            var config = options.Value;
+            _queueName = config.QueueName;
             _factory = new ConnectionFactory()
             {
-                HostName = "localhost",
-                UserName = "deskduck",
-                Password = "deskduck"
+                HostName = config.HostName,
+                UserName = config.UserName,
+                Password = config.Password
             };
         }
 
+        /// <summary>
+        /// Ensures that an open connection and channel exist before publishing.
+        /// Uses a double-checked lock via <see cref="SemaphoreSlim"/> to avoid redundant
+        /// reconnect attempts from concurrent callers. Disposes any stale connection first.
+        /// </summary>
         private async Task EnsureConnectedAsync(CancellationToken cancellationToken)
         {
             if (_connection != null && _connection.IsOpen && _channel != null && _channel.IsOpen)
@@ -41,7 +60,6 @@ namespace DeskDuck.Publisher
                     return;
                 }
 
-                // Cleanup old channel/connection if any
                 if (_channel != null)
                 {
                     try { await _channel.CloseAsync(cancellationToken: cancellationToken); } catch { }
@@ -57,7 +75,7 @@ namespace DeskDuck.Publisher
                 _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
                 await _channel.QueueDeclareAsync(
-                    queue: "deskduck.notifications",
+                    queue: _queueName,
                     durable: true,
                     exclusive: false,
                     autoDelete: false,
@@ -70,6 +88,12 @@ namespace DeskDuck.Publisher
             }
         }
 
+        /// <summary>
+        /// Serializes a notification and publishes it to the <c>deskduck.notifications</c> queue.
+        /// Automatically establishes the RabbitMQ connection if it is not yet open.
+        /// Errors are logged via <see cref="Debug.WriteLine"/> and do not propagate to callers
+        /// so that a broker outage never crashes the publisher service.
+        /// </summary>
         public async Task PublishAsync(string source, string severity, string text, string? link = null, CancellationToken cancellationToken = default)
         {
             try
@@ -94,7 +118,7 @@ namespace DeskDuck.Publisher
 
                 await _channel.BasicPublishAsync(
                     exchange: string.Empty,
-                    routingKey: "deskduck.notifications",
+                    routingKey: _queueName,
                     body: body,
                     cancellationToken: cancellationToken);
 
@@ -106,6 +130,9 @@ namespace DeskDuck.Publisher
             }
         }
 
+        /// <summary>
+        /// Disposes the channel, connection, and semaphore to release all RabbitMQ resources.
+        /// </summary>
         public void Dispose()
         {
             _channel?.Dispose();

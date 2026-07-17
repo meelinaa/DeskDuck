@@ -4,6 +4,7 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Project Path="DeskDuck.Tests/DeskDuck.Tests.csproj" Id="2d962644-50d7-432f-bdd2-16305cecb4ce" />
   <Project Path="DeskDuck/DeskDuck.csproj">
     <Platform Solution="*|ARM64" Project="ARM64" />
     <Platform Solution="*|x64" Project="x64" />

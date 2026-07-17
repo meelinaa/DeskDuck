@@ -7,10 +7,18 @@ using DeskDuck.Models;
 using DeskDuck.Publisher;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using DeskDuck.Helper;
 using Windows.Devices.Power;
 
 namespace DeskDuck.Services
 {
+    /// <summary>
+    /// Hosted background service that periodically checks system health metrics
+    /// (battery level, CPU usage, RAM usage) and publishes warning notifications
+    /// to RabbitMQ when a configured threshold is exceeded.
+    /// Each warning is only published once per threshold breach; it resets after
+    /// the metric recovers so the user is not spammed with repeated alerts.
+    /// </summary>
     public partial class SystemMonitorPublisherService(
         IOptions<SystemMonitorOptions> options,
         RabbitMqPublisher publisher) : BackgroundService
@@ -22,42 +30,13 @@ namespace DeskDuck.Services
         private bool _cpuWarningTriggered = false;
         private bool _ramWarningTriggered = false;
 
-        #region Win32 P/Invokes
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-        private class MEMORYSTATUSEX
-        {
-            public uint dwLength;
-            public uint dwMemoryLoad;
-            public ulong ullTotalPhys;
-            public ulong ullAvailPhys;
-            public ulong ullTotalPageFile;
-            public ulong ullAvailPageFile;
-            public ulong ullTotalVirtual;
-            public ulong ullAvailVirtual;
-            public ulong ullAvailExtendedVirtual;
-            public MEMORYSTATUSEX()
-            {
-                dwLength = (uint)Marshal.SizeOf(typeof(MEMORYSTATUSEX));
-            }
-        }
 
-        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GlobalMemoryStatusEx([In, Out] MEMORYSTATUSEX lpBuffer);
 
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool GetSystemTimes(out FILETIME lpIdleTime, out FILETIME lpKernelTime, out FILETIME lpUserTime);
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct FILETIME
-        {
-            public uint dwLowDateTime;
-            public uint dwHighDateTime;
-            public readonly ulong ToUInt64() => ((ulong)dwHighDateTime << 32) | dwLowDateTime;
-        }
-
-        #endregion
-
+        /// <summary>
+        /// Main service loop. Reads the latest configuration on every iteration so that
+        /// changes to appsettings.json are picked up without restarting the application.
+        /// Sleeps for the configured interval between checks.
+        /// </summary>
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)
@@ -75,15 +54,19 @@ namespace DeskDuck.Services
                     }
                 }
 
-                // Wait for the configured interval
                 int intervalSeconds = Math.Max(1, config.CheckIntervalSeconds);
                 await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), stoppingToken);
             }
         }
 
+        /// <summary>
+        /// Evaluates battery, CPU, and RAM metrics against their configured thresholds and
+        /// publishes a warning notification the first time each threshold is breached.
+        /// Clears the triggered flag once the metric returns to a safe level so subsequent
+        /// breaches will generate a new warning.
+        /// </summary>
         private async Task CheckSystemMetricsAsync(SystemMonitorOptions config, CancellationToken cancellationToken)
         {
-            // 1. Battery Check
             if (config.BatteryWarningEnabled)
             {
                 double? batteryPercent = GetBatteryPercent();
@@ -109,7 +92,6 @@ namespace DeskDuck.Services
                 }
             }
 
-            // 2. CPU Check
             if (config.CpuWarningEnabled)
             {
                 double? cpuUsage = await GetCpuUsageAsync(cancellationToken);
@@ -135,7 +117,6 @@ namespace DeskDuck.Services
                 }
             }
 
-            // 3. RAM Check
             if (config.RamWarningEnabled)
             {
                 double? ramUsage = GetRamUsage();
@@ -162,6 +143,11 @@ namespace DeskDuck.Services
             }
         }
 
+        /// <summary>
+        /// Returns the current battery charge as a percentage using the WinRT
+        /// <see cref="Battery.AggregateBattery"/> API. Returns <c>null</c> if no battery
+        /// is present or the capacity values are unavailable.
+        /// </summary>
         private static double? GetBatteryPercent()
         {
             try
@@ -185,14 +171,19 @@ namespace DeskDuck.Services
             return null;
         }
 
+        /// <summary>
+        /// Calculates CPU usage by sampling GetSystemTimes twice with a 250 ms interval
+        /// and computing the ratio of active time to total elapsed time.
+        /// Returns <c>null</c> if the P/Invoke call fails.
+        /// </summary>
         private static async Task<double?> GetCpuUsageAsync(CancellationToken cancellationToken)
         {
             try
             {
-                if (GetSystemTimes(out var idleTime1, out var kernelTime1, out var userTime1))
+                if (Win32WindowHelper.GetSystemTimesInfo(out var idleTime1, out var kernelTime1, out var userTime1))
                 {
                     await Task.Delay(250, cancellationToken);
-                    if (GetSystemTimes(out var idleTime2, out var kernelTime2, out var userTime2))
+                    if (Win32WindowHelper.GetSystemTimesInfo(out var idleTime2, out var kernelTime2, out var userTime2))
                     {
                         var idleDifference = idleTime2.ToUInt64() - idleTime1.ToUInt64();
                         var kernelDifference = kernelTime2.ToUInt64() - kernelTime1.ToUInt64();
@@ -214,14 +205,17 @@ namespace DeskDuck.Services
             return null;
         }
 
+        /// <summary>
+        /// Returns the current system-wide RAM usage percentage via the Win32
+        /// <c>GlobalMemoryStatusEx</c> API. Returns <c>null</c> if the call fails.
+        /// </summary>
         private static double? GetRamUsage()
         {
             try
             {
-                var memStatus = new MEMORYSTATUSEX();
-                if (GlobalMemoryStatusEx(memStatus))
+                if (Win32WindowHelper.GetMemoryLoad(out uint memoryLoad))
                 {
-                    return memStatus.dwMemoryLoad;
+                    return memoryLoad;
                 }
             }
             catch (Exception ex)

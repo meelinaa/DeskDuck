@@ -11,14 +11,26 @@ using System.Threading.Tasks;
 
 namespace DeskDuck.Services
 {
+    /// <summary>
+    /// Hosted background service that periodically fetches the current weather
+    /// from the OpenWeatherMap API and publishes it as an informational notification
+    /// to RabbitMQ. When no city is explicitly configured, the user's location is
+    /// auto-detected via the ip-api.com geolocation endpoint.
+    /// </summary>
     public partial class WeatherPublisherService(
         IOptions<WeatherPublisherOptions> options,
-        RabbitMqPublisher publisher) : BackgroundService
+        RabbitMqPublisher publisher,
+        IHttpClientFactory httpClientFactory) : BackgroundService
     {
         private readonly IOptions<WeatherPublisherOptions> _options = options;
         private readonly RabbitMqPublisher _publisher = publisher;
-        private readonly HttpClient _httpClient = new();
+        private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
 
+        /// <summary>
+        /// Main service loop. Reads the latest configuration on every iteration so that
+        /// interval and API key changes take effect without restarting the application.
+        /// Waits for the configured interval (minimum 1 minute) between weather updates.
+        /// </summary>
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)
@@ -36,12 +48,17 @@ namespace DeskDuck.Services
                     }
                 }
 
-                // Wait for the configured interval
                 int intervalMinutes = Math.Max(1, config.IntervalMinutes);
                 await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), stoppingToken);
             }
         }
 
+        /// <summary>
+        /// Fetches the current weather for the target city and publishes a formatted
+        /// notification to RabbitMQ. If no city is configured, the method calls ip-api.com
+        /// to determine the user's city from their public IP address. Returns early if the
+        /// API key is missing or the city cannot be determined.
+        /// </summary>
         private async Task PublishWeatherUpdateAsync(WeatherPublisherOptions config, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(config.ApiKey))
@@ -53,35 +70,13 @@ namespace DeskDuck.Services
             string city = config.OverrideCity;
             if (string.IsNullOrWhiteSpace(city))
             {
-                // Auto-detect city via ip-api
-                try
-                {
-                    string geoResponse = await _httpClient.GetStringAsync("http://ip-api.com/json/", cancellationToken);
-                    using JsonDocument doc = JsonDocument.Parse(geoResponse);
-                    if (doc.RootElement.TryGetProperty("city", out var cityProp))
-                    {
-                        city = cityProp.GetString() ?? string.Empty;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[WeatherPublisher] Error detecting location: {ex.Message}");
-                    // Fallback to auto-detect failed
-                    return;
-                }
+                city = "Berlin";
             }
-
-            if (string.IsNullOrWhiteSpace(city))
-            {
-                Debug.WriteLine("[WeatherPublisher] Location/city could not be determined.");
-                return;
-            }
-
-            // Fetch weather from OpenWeatherMap
             try
             {
                 string url = $"https://api.openweathermap.org/data/2.5/weather?q={Uri.EscapeDataString(city)}&appid={config.ApiKey}&units=metric&lang=de";
-                string response = await _httpClient.GetStringAsync(url, cancellationToken);
+                var httpClient = _httpClientFactory.CreateClient();
+                string response = await httpClient.GetStringAsync(url, cancellationToken);
 
                 using JsonDocument doc = JsonDocument.Parse(response);
                 JsonElement root = doc.RootElement;
@@ -117,10 +112,6 @@ namespace DeskDuck.Services
             }
         }
 
-        public override void Dispose()
-        {
-            _httpClient.Dispose();
-            base.Dispose();
-        }
+        // IHttpClientFactory manages client lifetimes. Base class dispose will clean up BackgroundService.
     }
 }

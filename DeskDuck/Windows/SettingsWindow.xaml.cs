@@ -1,4 +1,6 @@
+using DeskDuck.Helper;
 using DeskDuck.Models;
+using DeskDuck.ViewModel;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -11,39 +13,20 @@ using Windows.Graphics;
 
 namespace DeskDuck
 {
+    /// <summary>
+    /// Settings window that allows the user to configure all application options
+    /// via SettingsViewModel and persists them to the user-specific appsettings.json.
+    /// The window is always on top and has its title-bar icon removed for a cleaner look.
+    /// </summary>
     public sealed partial class SettingsWindow : Window
     {
-        #region Win32 Interop
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+        /// <summary>Gets the view model driving this settings window.</summary>
+        public SettingsViewModel ViewModel { get; } = new();
 
-        [DllImport("user32.dll", EntryPoint = "SetClassLong")]
-        private static extern uint SetClassLong32(IntPtr hWnd, int nIndex, uint dwNewLong);
-
-        [DllImport("user32.dll", EntryPoint = "SetClassLongPtr")]
-        private static extern IntPtr SetClassLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
-
-        private static IntPtr SetClassLong(IntPtr hWnd, int nIndex, IntPtr dwNewLong)
-        {
-            if (IntPtr.Size == 8)
-            {
-                return SetClassLongPtr64(hWnd, nIndex, dwNewLong);
-            }
-            else
-            {
-                return new IntPtr(SetClassLong32(hWnd, nIndex, (uint)dwNewLong.ToInt32()));
-            }
-        }
-
-        private const uint WM_SETICON = 0x0080;
-        private const int ICON_SMALL = 0;
-        private const int ICON_BIG = 1;
-        private const int GCLP_HICONSM = -34;
-        private const int GCL_HICON = -14;
-        #endregion
-
-        private readonly string _configPath;
-
+        /// <summary>
+        /// Initializes the settings window: sets the title, fixes the size, keeps it always
+        /// on top, removes the window icon, and loads the current settings into the view model.
+        /// </summary>
         public SettingsWindow()
         {
             InitializeComponent();
@@ -51,123 +34,37 @@ namespace DeskDuck
             Title = "DeskDuck Einstellungen";
             AppWindow.Resize(new SizeInt32(420, 600));
 
-            // Set TitleBar PreferredTheme to match application mode
             AppWindow.TitleBar.PreferredTheme = TitleBarTheme.UseDefaultAppMode;
 
-            // Make the settings window always on top of other windows
             OverlappedPresenter? presenter = AppWindow.Presenter as OverlappedPresenter;
             if (presenter != null)
             {
                 presenter.IsAlwaysOnTop = true;
             }
 
-            // Remove the icon in the top-left corner
-            nint hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-            SendMessage(hwnd, WM_SETICON, new IntPtr(ICON_SMALL), IntPtr.Zero);
-            SendMessage(hwnd, WM_SETICON, new IntPtr(ICON_BIG), IntPtr.Zero);
-            SetClassLong(hwnd, GCLP_HICONSM, IntPtr.Zero);
-            SetClassLong(hwnd, GCL_HICON, IntPtr.Zero);
-
-            _configPath = Helper.ConfigHelper.GetConfigPath();
-            LoadSettings();
+            ViewModel.Load();
         }
 
-        private void LoadSettings()
-        {
-            try
-            {
-                if (File.Exists(_configPath))
-                {
-                    string json = File.ReadAllText(_configPath);
-                    AppSettingsModel? settings = JsonSerializer.Deserialize<AppSettingsModel>(json, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                        TypeInfoResolver = AppJsonSerializerContext.Default
-                    });
-
-                    if (settings?.General != null)
-                    {
-                        ShowCoordinatesEnabled.IsOn = settings.General.ShowCoordinates;
-                    }
-
-                    if (settings?.Publishers != null)
-                    {
-                        SystemMonitorOptions sys = settings.Publishers.SystemMonitor;
-                        SysMonitorEnabled.IsOn = sys.Enabled;
-                        SysCheckInterval.Value = sys.CheckIntervalSeconds;
-                        BatteryEnabled.IsOn = sys.BatteryWarningEnabled;
-                        BatteryThreshold.Value = sys.BatteryWarningThresholdPercent;
-                        CpuEnabled.IsOn = sys.CpuWarningEnabled;
-                        CpuThreshold.Value = sys.CpuWarningThresholdPercent;
-                        RamEnabled.IsOn = sys.RamWarningEnabled;
-                        RamThreshold.Value = sys.RamWarningThresholdPercent;
-
-                        WeatherPublisherOptions weather = settings.Publishers.Weather;
-                        WeatherEnabled.IsOn = weather.Enabled;
-                        WeatherInterval.Value = weather.IntervalMinutes;
-                        WeatherApiKey.Text = weather.ApiKey;
-                        WeatherOverrideCity.Text = weather.OverrideCity;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[SettingsWindow] Error loading config: {ex.Message}");
-            }
-        }
-
+        /// <summary>
+        /// Saves current view model settings back to config, then closes the window.
+        /// Shows an error dialog if saving fails.
+        /// </summary>
         private async void SaveButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                AppSettingsModel settings = new()
-                {
-                    General = new GeneralSection
-                    {
-                        ShowCoordinates = ShowCoordinatesEnabled.IsOn
-                    },
-                    Publishers = new PublishersSection
-                    {
-                        SystemMonitor = new SystemMonitorOptions
-                        {
-                            Enabled = SysMonitorEnabled.IsOn,
-                            CheckIntervalSeconds = (int)SysCheckInterval.Value,
-                            BatteryWarningEnabled = BatteryEnabled.IsOn,
-                            BatteryWarningThresholdPercent = (int)BatteryThreshold.Value,
-                            CpuWarningEnabled = CpuEnabled.IsOn,
-                            CpuWarningThresholdPercent = (int)CpuThreshold.Value,
-                            RamWarningEnabled = RamEnabled.IsOn,
-                            RamWarningThresholdPercent = (int)RamThreshold.Value
-                        },
-                        Weather = new WeatherPublisherOptions
-                        {
-                            Enabled = WeatherEnabled.IsOn,
-                            IntervalMinutes = (int)WeatherInterval.Value,
-                            ApiKey = WeatherApiKey.Text,
-                            Location = "auto",
-                            OverrideCity = WeatherOverrideCity.Text
-                        }
-                    }
-                };
-
-                JsonSerializerOptions options = new()
-                {
-                    WriteIndented = true,
-                    TypeInfoResolver = AppJsonSerializerContext.Default 
-                };
-                string json = JsonSerializer.Serialize(settings, options);
-                File.WriteAllText(_configPath, json);
-
+                ViewModel.Save();
                 Close();
             }
             catch (Exception ex)
             {
+                string configPath = ConfigHelper.GetConfigPath();
                 Debug.WriteLine($"[SettingsWindow] Error saving config: {ex.Message}");
-                
+
                 ContentDialog errorDialog = new()
                 {
                     Title = "Error Saving Settings",
-                    Content = $"An error occurred while saving the settings:\n\n{ex.Message}\n\nPath: {_configPath}",
+                    Content = $"An error occurred while saving the settings:\n\n{ex.Message}\n\nPath: {configPath}",
                     CloseButtonText = "OK",
                     XamlRoot = Content.XamlRoot
                 };
@@ -175,6 +72,7 @@ namespace DeskDuck
             }
         }
 
+        /// <summary>Closes the settings window without saving any changes.</summary>
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             Close();

@@ -12,6 +12,11 @@ using System.Threading.Tasks;
 
 namespace DeskDuck.Services
 {
+    /// <summary>
+    /// Wraps the OllamaSharp client to provide AI chat functionality backed by a locally
+    /// running Ollama instance. Model name, server URL, and system prompt are loaded from
+    /// config.json at startup and fall back to hardcoded defaults if the file is absent.
+    /// </summary>
     public class OllamaChatService
     {
         private string _modelName = "llama3.2:latest";
@@ -19,12 +24,20 @@ namespace DeskDuck.Services
         private string _modelPromt = string.Empty;
         private OllamaApiClient? _client;
 
+        /// <summary>
+        /// Loads configuration from disk and initializes the Ollama API client.
+        /// </summary>
         public OllamaChatService()
         {
             LoadConfig();
             InitClient();
         }
 
+        /// <summary>
+        /// Creates the <see cref="OllamaApiClient"/> instance pointed at the configured URL
+        /// and pre-selects the configured model. Errors are swallowed here because the client
+        /// can be re-initialized lazily on the first actual request.
+        /// </summary>
         private void InitClient()
         {
             try
@@ -36,52 +49,45 @@ namespace DeskDuck.Services
             }
             catch
             {
-                // Client initialization will be retried or handled gracefully on call
+                // Client initialization will be retried lazily on the next request.
             }
         }
 
+        /// <summary>
+        /// Reads Ollama configuration from the central appsettings.json.
+        /// Silently falls back to defaults if the file does not exist or cannot be parsed.
+        /// </summary>
         private void LoadConfig()
         {
             try
             {
-                string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
-                if (File.Exists(configPath))
+                var settings = Helper.ConfigHelper.LoadSettings();
+                if (settings?.Ollama != null)
                 {
-                    string json = File.ReadAllText(configPath);
-                    using JsonDocument doc = JsonDocument.Parse(json);
-                    JsonElement root = doc.RootElement;
-                    if (root.TryGetProperty("OllamaModel", out var modelProp))
+                    if (!string.IsNullOrEmpty(settings.Ollama.Model))
                     {
-                        string? val = modelProp.GetString();
-                        if (!string.IsNullOrEmpty(val))
-                        {
-                            _modelName = val;
-                        }
+                        _modelName = settings.Ollama.Model;
                     }
-                    if (root.TryGetProperty("OllamaUrl", out var urlProp))
+                    if (!string.IsNullOrEmpty(settings.Ollama.Url))
                     {
-                        string? val = urlProp.GetString();
-                        if (!string.IsNullOrEmpty(val))
-                        {
-                            _ollamaUrl = val;
-                        }
+                        _ollamaUrl = settings.Ollama.Url;
                     }
-                    if (root.TryGetProperty("OllamaPromt", out var promtProp))
+                    if (!string.IsNullOrEmpty(settings.Ollama.Prompt))
                     {
-                        string? val = promtProp.GetString();
-                        if (!string.IsNullOrEmpty(val))
-                        {
-                            _modelPromt = val;
-                        }
+                        _modelPromt = settings.Ollama.Prompt;
                     }
                 }
             }
             catch
             {
-                // Fallback to default field initializers
+                // Fall back to default field initializers.
             }
         }
 
+        /// <summary>
+        /// Returns the names of all locally available Ollama models.
+        /// Returns an empty sequence if the Ollama service is unavailable.
+        /// </summary>
         public async Task<IEnumerable<string>> GetLocalModelsAsync()
         {
             try
@@ -98,6 +104,13 @@ namespace DeskDuck.Services
             }
         }
 
+        /// <summary>
+        /// Sends the full conversation history to Ollama and returns the assistant's reply.
+        /// The configured system prompt is prepended as the first message so the model always
+        /// receives its persona instructions. If <paramref name="modelName"/> is provided and
+        /// non-empty it overrides the default configured model for this call only.
+        /// Returns a user-friendly error string instead of throwing on failure.
+        /// </summary>
         public async Task<string> AskAsync(IEnumerable<ChatMessage> history, string modelName)
         {
             try
@@ -114,20 +127,16 @@ namespace DeskDuck.Services
 
                 string activeModel = string.IsNullOrWhiteSpace(modelName) ? _modelName : modelName;
 
-                // 1. Build the messages list expected by OllamaSharp
                 List<Message> messages = [];
 
-                // Add System Prompt as the first message
                 messages.Add(new Message(ChatRole.System, _modelPromt));
 
-                // Add conversation history
                 foreach (ChatMessage chatMsg in history)
                 {
                     ChatRole role = chatMsg.IsUser ? ChatRole.User : ChatRole.Assistant;
                     messages.Add(new Message(role, chatMsg.Text));
                 }
 
-                // 2. Execute chat request
                 ChatRequest chatRequest = new()
                 {
                     Model = activeModel,

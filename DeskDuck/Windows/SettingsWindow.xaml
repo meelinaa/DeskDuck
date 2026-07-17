@@ -18,26 +18,26 @@
             <StackPanel Spacing="16" Margin="0,0,0,16">
                 <!-- General Header -->
                 <TextBlock Text="Allgemein" FontSize="18" FontWeight="Bold"/>
-                <ToggleSwitch x:Name="ShowCoordinatesEnabled" Header="Koordinaten anzeigen" IsOn="True" />
+                <ToggleSwitch x:Name="ShowCoordinatesEnabled" Header="Koordinaten anzeigen" IsOn="{x:Bind ViewModel.ShowCoordinatesEnabled, Mode=TwoWay}" />
 
                 <MenuFlyoutSeparator Margin="0,8"/>
 
                 <!-- System Monitor Header -->
                 <TextBlock Text="System Monitor" FontSize="18" FontWeight="Bold"/>
                 
-                <ToggleSwitch x:Name="SysMonitorEnabled" Header="System Monitor aktivieren" IsOn="True" />
+                <ToggleSwitch x:Name="SysMonitorEnabled" Header="System Monitor aktivieren" IsOn="{x:Bind ViewModel.SysMonitorEnabled, Mode=TwoWay}" />
                 
                 <StackPanel Spacing="8" Margin="12,0,0,0" x:Name="SysMonitorPanel">
-                    <NumberBox x:Name="SysCheckInterval" Header="Prüfintervall (Sekunden)" Value="10" SpinButtonPlacementMode="Compact" SmallChange="1" LargeChange="10" Minimum="1"/>
+                    <NumberBox x:Name="SysCheckInterval" Header="Prüfintervall (Sekunden)" Value="{x:Bind ViewModel.SysCheckInterval, Mode=TwoWay}" SpinButtonPlacementMode="Compact" SmallChange="1" LargeChange="10" Minimum="1"/>
                     
-                    <ToggleSwitch x:Name="BatteryEnabled" Header="Akku Warnung aktivieren" IsOn="True"/>
-                    <Slider x:Name="BatteryThreshold" Header="Akku Schwellenwert (%)" Minimum="1" Maximum="100" Value="20" Margin="12,0,0,0"/>
+                    <ToggleSwitch x:Name="BatteryEnabled" Header="Akku Warnung aktivieren" IsOn="{x:Bind ViewModel.BatteryEnabled, Mode=TwoWay}"/>
+                    <Slider x:Name="BatteryThreshold" Header="Akku Schwellenwert (%)" Minimum="1" Maximum="100" Value="{x:Bind ViewModel.BatteryThreshold, Mode=TwoWay}" Margin="12,0,0,0"/>
 
-                    <ToggleSwitch x:Name="CpuEnabled" Header="CPU Warnung aktivieren" IsOn="True"/>
-                    <Slider x:Name="CpuThreshold" Header="CPU Schwellenwert (%)" Minimum="1" Maximum="100" Value="85" Margin="12,0,0,0"/>
+                    <ToggleSwitch x:Name="CpuEnabled" Header="CPU Warnung aktivieren" IsOn="{x:Bind ViewModel.CpuEnabled, Mode=TwoWay}"/>
+                    <Slider x:Name="CpuThreshold" Header="CPU Schwellenwert (%)" Minimum="1" Maximum="100" Value="{x:Bind ViewModel.CpuThreshold, Mode=TwoWay}" Margin="12,0,0,0"/>
 
-                    <ToggleSwitch x:Name="RamEnabled" Header="RAM Warnung aktivieren" IsOn="True"/>
-                    <Slider x:Name="RamThreshold" Header="RAM Schwellenwert (%)" Minimum="1" Maximum="100" Value="85" Margin="12,0,0,0"/>
+                    <ToggleSwitch x:Name="RamEnabled" Header="RAM Warnung aktivieren" IsOn="{x:Bind ViewModel.RamEnabled, Mode=TwoWay}"/>
+                    <Slider x:Name="RamThreshold" Header="RAM Schwellenwert (%)" Minimum="1" Maximum="100" Value="{x:Bind ViewModel.RamThreshold, Mode=TwoWay}" Margin="12,0,0,0"/>
                 </StackPanel>
 
                 <MenuFlyoutSeparator Margin="0,8"/>
@@ -45,12 +45,12 @@
                 <!-- Weather Header -->
                 <TextBlock Text="Wetter Publisher" FontSize="18" FontWeight="Bold"/>
                 
-                <ToggleSwitch x:Name="WeatherEnabled" Header="Wetter aktivieren" IsOn="True"/>
+                <ToggleSwitch x:Name="WeatherEnabled" Header="Wetter aktivieren" IsOn="{x:Bind ViewModel.WeatherEnabled, Mode=TwoWay}"/>
                 
                 <StackPanel Spacing="8" Margin="12,0,0,0" x:Name="WeatherPanel">
-                    <NumberBox x:Name="WeatherInterval" Header="Intervall (Minuten)" Value="30" SpinButtonPlacementMode="Compact" SmallChange="5" LargeChange="30" Minimum="1"/>
-                    <TextBox x:Name="WeatherApiKey" Header="OpenWeatherMap API Key" PlaceholderText="API Key eingeben..."/>
-                    <TextBox x:Name="WeatherOverrideCity" Header="Stadt überschreiben (optional)" PlaceholderText="z.B. Berlin"/>
+                    <NumberBox x:Name="WeatherInterval" Header="Intervall (Minuten)" Value="{x:Bind ViewModel.WeatherInterval, Mode=TwoWay}" SpinButtonPlacementMode="Compact" SmallChange="5" LargeChange="30" Minimum="1"/>
+                    <TextBox x:Name="WeatherApiKey" Header="OpenWeatherMap API Key" Text="{x:Bind ViewModel.WeatherApiKey, Mode=TwoWay}" PlaceholderText="API Key eingeben..."/>
+                    <TextBox x:Name="WeatherOverrideCity" Header="Stadt überschreiben (optional)" Text="{x:Bind ViewModel.WeatherOverrideCity, Mode=TwoWay}" PlaceholderText="z.B. Berlin"/>
                 </StackPanel>
 
                 <MenuFlyoutSeparator Margin="0,8"/>

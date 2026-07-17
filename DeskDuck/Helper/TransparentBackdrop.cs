@@ -1,4 +1,3 @@
-﻿
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
@@ -8,19 +7,23 @@ using Compositor = Windows.UI.Composition.Compositor;
 namespace DeskDuck.Helper;
 
 /// <summary>
-/// Custom SystemBackdrop that renders a fully transparent background,
-/// allowing the desktop and other windows to show through.
+/// Custom <see cref="SystemBackdrop"/> that renders a fully transparent background,
+/// allowing the desktop and all underlying windows to show through the overlay.
 /// </summary>
 public partial class TransparentBackdrop : SystemBackdrop
 {
+    /// <summary>
+    /// Called when this backdrop is applied to a target window.
+    /// Retrieves the underlying WinRT <see cref="Compositor"/> via the
+    /// <see cref="CompositionObject"/> interface and assigns a fully transparent
+    /// color brush so no backdrop color is painted.
+    /// </summary>
     protected override void OnTargetConnected(
         ICompositionSupportsSystemBackdrop connectedTarget,
         XamlRoot xamlRoot)
     {
         base.OnTargetConnected(connectedTarget, xamlRoot);
 
-        // In WinUI 3, ICompositionSupportsSystemBackdrop is a WinRT interface.
-        // Under the hood, we can retrieve the Windows.UI.Composition.Compositor.
         if (connectedTarget is CompositionObject compositionObject)
         {
             Compositor compositor = compositionObject.Compositor;

@@ -26,9 +26,6 @@ using Windows.Graphics;
 using Windows.UI;
 using WinRT.Interop;
 
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
-
 namespace DeskDuck
 {
     /// <summary>
@@ -37,63 +34,19 @@ namespace DeskDuck
     /// </summary>
     public sealed partial class MainWindow : Window
     {
-        #region Win32 Interop
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
-        [DllImport("user32.dll")]
-        private static extern bool GetCursorPos(out PointStruct lpPoint);
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct PointStruct
-        {
-            public int X;
-            public int Y;
-        }
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
-
-        [DllImport("comctl32.dll", CharSet = CharSet.Auto)]
-        private static extern bool SetWindowSubclass(IntPtr hWnd, SUBCLASSPROC pfnSubclass, IntPtr uIdSubclass, IntPtr dwRefData);
-
-        [DllImport("comctl32.dll", CharSet = CharSet.Auto)]
-        private static extern bool RemoveWindowSubclass(IntPtr hWnd, SUBCLASSPROC pfnSubclass, IntPtr uIdSubclass);
-
-        [DllImport("comctl32.dll", CharSet = CharSet.Auto)]
-        private static extern IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
-
-        private delegate IntPtr SUBCLASSPROC(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData);
-
-        private const int HOTKEY_ID = 1337;
-        private const uint MOD_ALT = 0x0001;
-        private const uint MOD_CONTROL = 0x0002;
-        private const uint MOD_SHIFT = 0x0004;
-        private const uint VK_D = 0x44;
-        private const uint WM_HOTKEY = 0x0312;
-
-        private const int GWL_EXSTYLE = -20;
-        private const int WS_EX_LAYERED = 0x00080000;
-        private const int WS_EX_TRANSPARENT = 0x00000020;
-        private const int WS_EX_TOOLWINDOW = 0x00000080;
-        private const int WS_EX_NOACTIVATE = 0x08000000;
-
-        #endregion
-
-        private SUBCLASSPROC? _subclassProc;
+        private Win32WindowHelper.SUBCLASSPROC? _subclassProc;
 
         private readonly DuckMovementManager? _movementManager;
         private readonly RabbitMQBackgroundService? _rabbitMQService;
         private readonly IHost? _host;
+        private AppSettingsModel _settings = new();
 
         public MainViewModel MainViewModel { get; } = new();
 
+        /// <summary>
+        /// Initializes the main window, configures the overlay, loads settings,
+        /// starts duck movement, and launches all background services.
+        /// </summary>
         public MainWindow()
         {
             InitializeComponent();
@@ -105,15 +58,14 @@ namespace DeskDuck
             _movementManager.PositionChanged += OnDuckPositionChanged;
             _movementManager.Start();
 
-            // Start RabbitMQ Background Service
             _rabbitMQService = new RabbitMQBackgroundService(
                 DispatcherQueue,
                 ShowNotification,
-                HideNotification
+                HideNotification,
+                _settings.RabbitMQ
             );
             _rabbitMQService.Start();
 
-            // Start the Publisher services Host
             try
             {
                 _host = Host.CreateDefaultBuilder()
@@ -127,7 +79,9 @@ namespace DeskDuck
                     {
                         services.Configure<SystemMonitorOptions>(context.Configuration.GetSection("Publishers:SystemMonitor"));
                         services.Configure<WeatherPublisherOptions>(context.Configuration.GetSection("Publishers:Weather"));
+                        services.Configure<RabbitMqOptions>(context.Configuration.GetSection("RabbitMQ"));
 
+                        services.AddHttpClient();
                         services.AddSingleton<RabbitMqPublisher>();
 
                         services.AddHostedService<SystemMonitorPublisherService>();
@@ -145,15 +99,20 @@ namespace DeskDuck
             Closed += OnWindowClosed;
         }
 
+        /// <summary>
+        /// Cleans up resources when the window closes: unregisters the global hotkey,
+        /// removes the window subclass, gracefully stops the publisher host with a 5-second
+        /// timeout to prevent hanging, and shuts down the RabbitMQ background service.
+        /// </summary>
         private async void OnWindowClosed(object sender, WindowEventArgs args)
         {
             try
             {
                 nint hwnd = WindowNative.GetWindowHandle(this);
-                UnregisterHotKey(hwnd, HOTKEY_ID);
+                Win32WindowHelper.UnregisterHotkey(hwnd, Win32WindowHelper.HOTKEY_ID);
                 if (_subclassProc != null)
                 {
-                    RemoveWindowSubclass(hwnd, _subclassProc, new IntPtr(1));
+                    Win32WindowHelper.RemoveSubclass(hwnd, _subclassProc, new IntPtr(1));
                 }
             }
             catch (Exception ex)
@@ -163,9 +122,21 @@ namespace DeskDuck
 
             try
             {
+                if (_movementManager != null)
+                {
+                    _movementManager.StateChanged -= OnDuckStateChanged;
+                    _movementManager.PositionChanged -= OnDuckPositionChanged;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Movement Cleanup] Error: {ex.Message}");
+            }
+
+            try
+            {
                 if (_host != null)
                 {
-                    // Use a cancellation token source with timeout to guarantee no hanging on close
                     using (CancellationTokenSource cts = new(TimeSpan.FromSeconds(5)))
                     {
                         await _host.StopAsync(cts.Token);
@@ -191,6 +162,11 @@ namespace DeskDuck
             }
         }
 
+        /// <summary>
+        /// Displays an incoming notification by setting its title, message, and a color-coded
+        /// text brush based on severity ("warning" → red, "info" or weather source → blue,
+        /// everything else → black).
+        /// </summary>
         private void ShowNotification(NotificationMessage message)
         {
             MainViewModel.NotificationTitle = message.Title ?? string.Empty;
@@ -215,6 +191,9 @@ namespace DeskDuck
             MainViewModel.NotificationVisibility = Visibility.Visible;
         }
 
+        /// <summary>
+        /// Hides the notification overlay by collapsing its visibility.
+        /// </summary>
         private void HideNotification()
         {
             MainViewModel.NotificationVisibility = Visibility.Collapsed;
@@ -222,7 +201,7 @@ namespace DeskDuck
 
         private bool _isDragging = false;
         private PointInt32 _dragStartWindowPos;
-        private PointStruct _dragStartCursorPos;
+        private Win32WindowHelper.PointStruct _dragStartCursorPos;
 
         private ChatWindow? _chatWindow;
         private bool _isChatActive = false;
@@ -231,16 +210,24 @@ namespace DeskDuck
 
         private bool _isContextMenuOpen = false;
 
+        /// <summary>
+        /// Resumes duck movement when the context menu closes, provided neither the
+        /// chat nor the settings window is currently open.
+        /// </summary>
         private void DuckContextMenu_Closed(object sender, object e)
         {
             _isContextMenuOpen = false;
-            // Resume walking only if the chat window and settings window are not opened
             if (!_isChatActive && !_isSettingsActive)
             {
                 _movementManager?.Resume();
             }
         }
 
+        /// <summary>
+        /// Opens the chat window and freezes duck movement for the duration of the chat session.
+        /// If a chat window already exists, it is simply brought to the foreground.
+        /// The duck is repositioned to sit next to the chat window so it remains visible.
+        /// </summary>
         private void ChatWithAI_Click(object sender, RoutedEventArgs e)
         {
             _isChatActive = true;
@@ -251,7 +238,6 @@ namespace DeskDuck
                 return;
             }
 
-            // Create new ChatWindow
             _chatWindow = new ChatWindow();
             AppWindow chatAppWindow = _chatWindow.AppWindow;
 
@@ -262,17 +248,13 @@ namespace DeskDuck
                 chatAppWindow.Changed -= ChatAppWindow_Changed;
                 _chatWindow = null;
                 _isChatActive = false;
-                // Resume movement after closing the chat window
                 _movementManager?.Start();
             };
 
-            // Freeze movement completely during chat
             _movementManager?.Stop();
 
-            // Open chat window first so position/size are calculated
             _chatWindow.Activate();
 
-            // Dock duck window next to top-left of chat window
             PointInt32 chatPos = chatAppWindow.Position;
             SizeInt32 chatSize = chatAppWindow.Size;
 
@@ -283,6 +265,10 @@ namespace DeskDuck
             MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
         }
 
+        /// <summary>
+        /// Keeps the duck window anchored relative to the chat window whenever the
+        /// chat window is moved by the user.
+        /// </summary>
         private void ChatAppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
         {
             if (args.DidPositionChange && _chatWindow != null)
@@ -297,11 +283,19 @@ namespace DeskDuck
             }
         }
 
+        /// <summary>
+        /// Exits the application immediately when the user selects "Exit" from the context menu.
+        /// </summary>
         private void Exit_Click(object sender, RoutedEventArgs e)
         {
             Application.Current.Exit();
         }
 
+        /// <summary>
+        /// Opens the settings window and freezes duck movement for the duration of the session.
+        /// If the settings window already exists, it is brought to the foreground.
+        /// The duck is repositioned next to the settings window and settings are reloaded on close.
+        /// </summary>
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
             _isSettingsActive = true;
@@ -312,7 +306,6 @@ namespace DeskDuck
                 return;
             }
 
-            // Create new SettingsWindow
             _settingsWindow = new SettingsWindow();
             AppWindow settingsAppWindow = _settingsWindow.AppWindow;
 
@@ -323,18 +316,14 @@ namespace DeskDuck
                 settingsAppWindow.Changed -= SettingsAppWindow_Changed;
                 _settingsWindow = null;
                 _isSettingsActive = false;
-                // Resume movement after closing the settings window
                 _movementManager?.Start();
                 LoadSettings();
             };
 
-            // Freeze movement completely during settings
             _movementManager?.Stop();
 
-            // Open settings window first so position/size are calculated
             _settingsWindow.Activate();
 
-            // Dock duck window next to top-left of settings window
             PointInt32 settingsPos = settingsAppWindow.Position;
             SizeInt32 settingsSize = settingsAppWindow.Size;
 
@@ -345,6 +334,10 @@ namespace DeskDuck
             MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
         }
 
+        /// <summary>
+        /// Keeps the duck window anchored relative to the settings window whenever the
+        /// settings window is moved by the user.
+        /// </summary>
         private void SettingsAppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
         {
             if (args.DidPositionChange && _settingsWindow != null)
@@ -359,40 +352,48 @@ namespace DeskDuck
             }
         }
 
+        /// <summary>
+        /// Handles pointer press events on the duck image.
+        /// Left-click starts a drag operation and captures the pointer so movement
+        /// is tracked even when the cursor leaves the element.
+        /// Right-click pauses movement and shows the context menu flyout.
+        /// </summary>
         private void DuckImage_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
             if (_movementManager == null || _isChatActive || _isSettingsActive) return;
 
             PointerPointProperties properties = e.GetCurrentPoint(sender as UIElement).Properties;
 
-            // Linksklick -> Drag & Drop starten
             if (properties.IsLeftButtonPressed)
             {
                 _isDragging = true;
                 _movementManager.Pause();
                 UpdateDuckVisual(DuckState.Held);
 
-                GetCursorPos(out _dragStartCursorPos);
+                Win32WindowHelper.GetCursorPosition(out _dragStartCursorPos);
                 _dragStartWindowPos = new PointInt32(AppWindow.Position.X, AppWindow.Position.Y);
 
                 (sender as UIElement)?.CapturePointer(e.Pointer);
             }
-            // Rechtsklick -> Kontextmenü anzeigen
             else if (properties.IsRightButtonPressed)
             {
+                _isContextMenuOpen = true;
                 _movementManager.Pause();
                 UpdateDuckVisual(DuckState.Waiting);
 
-                // Show context menu
                 FlyoutBase.ShowAttachedFlyout(sender as FrameworkElement);
             }
         }
 
+        /// <summary>
+        /// Moves the duck window by the delta between the current cursor position and the
+        /// position recorded when dragging started, producing smooth drag-and-drop behaviour.
+        /// </summary>
         private void DuckImage_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
             if (!_isDragging) return;
 
-            GetCursorPos(out PointStruct currentCursorPos);
+            Win32WindowHelper.GetCursorPosition(out Win32WindowHelper.PointStruct currentCursorPos);
             int deltaX = currentCursorPos.X - _dragStartCursorPos.X;
             int deltaY = currentCursorPos.Y - _dragStartCursorPos.Y;
 
@@ -403,6 +404,10 @@ namespace DeskDuck
             MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
         }
 
+        /// <summary>
+        /// Ends the drag operation, releases the pointer capture, and resumes duck
+        /// movement unless the chat window is currently open.
+        /// </summary>
         private void DuckImage_PointerReleased(object sender, PointerRoutedEventArgs e)
         {
             if (!_isDragging) return;
@@ -418,16 +423,26 @@ namespace DeskDuck
             }
         }
 
+        /// <summary>
+        /// Forwards duck state changes from the movement manager to the visual layer.
+        /// </summary>
         private void OnDuckStateChanged(DuckState state)
         {
             UpdateDuckVisual(state);
         }
 
+        /// <summary>
+        /// Updates the coordinates label in the view model whenever the duck moves.
+        /// </summary>
         private void OnDuckPositionChanged(int x, int y)
         {
             MainViewModel.CoordinatesText = $"X: {x}, Y: {y}";
         }
 
+        /// <summary>
+        /// Swaps the duck image URI to match the current movement state so the correct
+        /// animation (walking left/right, held, or sitting) is displayed.
+        /// </summary>
         private void UpdateDuckVisual(DuckState state)
         {
             string uriString = state switch
@@ -441,34 +456,35 @@ namespace DeskDuck
             MainViewModel.DuckImageUri = uriString;
         }
 
+        /// <summary>
+        /// Configures the window as a transparent, always-on-top, borderless overlay.
+        /// WS_EX_LAYERED and WS_EX_TOOLWINDOW ensure the window is invisible to the taskbar
+        /// while still allowing visible UI elements (the duck) to receive mouse input.
+        /// WS_EX_NOACTIVATE prevents the overlay from stealing focus from other applications.
+        /// A global hotkey (Ctrl+Alt+Shift+D) is registered via a window subclass so the
+        /// duck can be teleported back to the screen center at any time.
+        /// </summary>
         private void ConfigureOverlayWindow()
         {
-            // Transparenter Hintergrund via custom SystemBackdrop
             SystemBackdrop = new TransparentBackdrop();
 
             AppWindow appWindow = this.AppWindow;
             nint hwnd = WindowNative.GetWindowHandle(this);
 
-            // Rahmenlos und immer im Vordergrund
             OverlappedPresenter presenter = OverlappedPresenter.CreateForToolWindow();
             presenter.IsAlwaysOnTop = true;
             presenter.SetBorderAndTitleBar(false, false);
             appWindow.SetPresenter(presenter);
 
-            // Fenstergröße auf kompakte Ente-Größe setzen
             appWindow.Resize(new SizeInt32(300, 300));
 
-            // Klickdurchlässig machen NUR für transparente Bereiche.
-            // Ohne WS_EX_TRANSPARENT können sichtbare UI-Elemente wie die Ente Mausklicks empfangen.
-            int exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-            _ = SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+            Win32WindowHelper.ConfigureOverlayStyles(hwnd);
 
-            // Register global hotkey and subclass window proc
             try
             {
-                _subclassProc = new SUBCLASSPROC(NewWindowProc);
-                SetWindowSubclass(hwnd, _subclassProc, new IntPtr(1), IntPtr.Zero);
-                RegisterHotKey(hwnd, HOTKEY_ID, MOD_CONTROL | MOD_ALT | MOD_SHIFT, VK_D);
+                _subclassProc = new Win32WindowHelper.SUBCLASSPROC(NewWindowProc);
+                Win32WindowHelper.RegisterSubclass(hwnd, _subclassProc, new IntPtr(1), IntPtr.Zero);
+                Win32WindowHelper.RegisterHotkey(hwnd, Win32WindowHelper.HOTKEY_ID, Win32WindowHelper.MOD_CONTROL | Win32WindowHelper.MOD_ALT | Win32WindowHelper.MOD_SHIFT, Win32WindowHelper.VK_D);
             }
             catch (Exception ex)
             {
@@ -476,11 +492,17 @@ namespace DeskDuck
             }
         }
 
+        /// <summary>
+        /// Custom window procedure that intercepts WM_HOTKEY messages.
+        /// When the registered hotkey fires and no modal interaction is active,
+        /// the duck is teleported to the center of the primary display's work area.
+        /// All other messages are forwarded to the default subclass procedure.
+        /// </summary>
         private IntPtr NewWindowProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData)
         {
-            if (uMsg == WM_HOTKEY && wParam.ToInt32() == HOTKEY_ID)
+            if (uMsg == Win32WindowHelper.WM_HOTKEY && wParam.ToInt32() == Win32WindowHelper.HOTKEY_ID)
             {
-                if (!_isDragging && !_isChatActive && !_isSettingsActive && _movementManager != null)
+                if (!_isDragging && !_isChatActive && !_isSettingsActive && !_isContextMenuOpen && _movementManager != null)
                 {
                     DispatcherQueue.TryEnqueue(() =>
                     {
@@ -497,31 +519,28 @@ namespace DeskDuck
                 return IntPtr.Zero;
             }
 
-            return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+            return Win32WindowHelper.DefaultSubclassProc(hWnd, uMsg, wParam, lParam);
         }
 
+        /// <summary>
+        /// Reads the JSON configuration file and applies relevant settings to the view model.
+        /// Currently controls whether the coordinate overlay is visible, defaulting to visible
+        /// if the config file is missing or the general settings section is absent.
+        /// </summary>
         private void LoadSettings()
         {
             try
             {
-                string configPath = ConfigHelper.GetConfigPath();
-                if (File.Exists(configPath))
-                {
-                    string json = File.ReadAllText(configPath);
-                    AppSettingsModel? settings = JsonSerializer.Deserialize<AppSettingsModel>(json, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                        TypeInfoResolver = AppJsonSerializerContext.Default
-                    });
+                var settings = ConfigHelper.LoadSettings();
+                _settings = settings;
 
-                    if (settings?.General != null)
-                    {
-                        MainViewModel.CoordinatesVisibility = settings.General.ShowCoordinates ? Visibility.Visible : Visibility.Collapsed;
-                    }
-                    else
-                    {
-                        MainViewModel.CoordinatesVisibility = Visibility.Visible;
-                    }
+                if (settings.General != null)
+                {
+                    MainViewModel.CoordinatesVisibility = settings.General.ShowCoordinates ? Visibility.Visible : Visibility.Collapsed;
+                }
+                else
+                {
+                    MainViewModel.CoordinatesVisibility = Visibility.Visible;
                 }
             }
             catch (Exception ex)
