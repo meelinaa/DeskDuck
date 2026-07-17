@@ -2,6 +2,7 @@ using DeskDuck.ViewModel;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Diagnostics;
 using Windows.Graphics;
@@ -17,15 +18,17 @@ namespace DeskDuck.Features.Settings
     {
         /// <summary>Gets the view model driving this settings window.</summary>
         public SettingsViewModel ViewModel { get; }
+        private readonly ILogger<SettingsWindow> _logger;
 
         /// <summary>
         /// Initializes the settings window: sets the title, fixes the size, keeps it always
         /// on top, removes the window icon, and loads the current settings into the view model.
         /// </summary>
-        public SettingsWindow(SettingsViewModel viewModel)
+        public SettingsWindow(SettingsViewModel viewModel, ILogger<SettingsWindow> logger)
         {
             InitializeComponent();
             ViewModel = viewModel;
+            _logger = logger;
 
             Title = "DeskDuck Einstellungen";
             AppWindow.Resize(new SizeInt32(420, 600));
@@ -55,7 +58,7 @@ namespace DeskDuck.Features.Settings
             catch (Exception ex)
             {
                 string configPath = ViewModel.ConfigPath;
-                Debug.WriteLine($"[SettingsWindow] Error saving config: {ex.Message}");
+                _logger.LogError(ex, "Error saving config");
 
                 ContentDialog errorDialog = new()
                 {

@@ -7,6 +7,10 @@ using DeskDuck.Features.Messaging;
 using DeskDuck.Features.Shell;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Polly;
+using Polly.Extensions.Http;
+using System;
+using System.Net.Http;
 
 namespace DeskDuck.Core
 {
@@ -23,14 +27,19 @@ namespace DeskDuck.Core
             services.Configure<GeneralSection>(configuration.GetSection("General"));
 
             // Core
-            services.AddHttpClient();
+            services.AddHttpClient("DeskDuck")
+                .AddPolicyHandler(GetRetryPolicy());
 
             // Settings
             services.AddSingleton<ISettingsRepository, SettingsRepository>();
             services.AddTransient<SettingsViewModel>();
 
             // Shell
+            services.AddSingleton<IWindowService, WindowService>();
             services.AddSingleton<MainWindow>();
+
+            // SystemMonitor
+            services.AddSingleton<ISystemMetricsProvider, SystemMetricsProvider>();
 
             // Chat
             services.AddSingleton<IOllamaChatService, OllamaChatService>();
@@ -45,6 +54,13 @@ namespace DeskDuck.Core
             services.AddHostedService<WeatherPublisherService>();
 
             return services;
+        }
+
+        private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
+        {
+            return HttpPolicyExtensions
+                .HandleTransientHttpError()
+                .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
         }
     }
 }

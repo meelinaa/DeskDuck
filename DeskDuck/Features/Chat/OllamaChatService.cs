@@ -1,4 +1,4 @@
-using DeskDuck.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OllamaSharp;
 using OllamaSharp.Models;
@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace DeskDuck.Features.Chat
@@ -17,21 +18,28 @@ namespace DeskDuck.Features.Chat
     /// </summary>
     public class OllamaChatService : IOllamaChatService
     {
-        private readonly string _modelName;
-        private readonly string _ollamaUrl;
-        private readonly string _modelPromt;
+        private readonly IOptionsMonitor<OllamaOptions> _optionsMonitor;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ILogger<OllamaChatService> _logger;
         private OllamaApiClient? _client;
 
         /// <summary>
         /// Initializes the service with the injected Ollama options and creates the API client.
         /// </summary>
-        public OllamaChatService(IOptions<OllamaOptions> options)
+        public OllamaChatService(
+            IOptionsMonitor<OllamaOptions> optionsMonitor,
+            IHttpClientFactory httpClientFactory,
+            ILogger<OllamaChatService> logger)
         {
-            var config = options.Value;
-            _modelName = !string.IsNullOrEmpty(config.Model) ? config.Model : "llama3.2:latest";
-            _ollamaUrl = !string.IsNullOrEmpty(config.Url) ? config.Url : "http://localhost:11434";
-            _modelPromt = config.Prompt ?? string.Empty;
+            _optionsMonitor = optionsMonitor;
+            _httpClientFactory = httpClientFactory;
+            _logger = logger;
             InitClient();
+
+            _optionsMonitor.OnChange(config =>
+            {
+                InitClient();
+            });
         }
 
         /// <summary>
@@ -43,9 +51,16 @@ namespace DeskDuck.Features.Chat
         {
             try
             {
-                _client = new OllamaApiClient(new Uri(_ollamaUrl))
+                var config = _optionsMonitor.CurrentValue;
+                var modelName = !string.IsNullOrEmpty(config.Model) ? config.Model : "llama3.2:latest";
+                var ollamaUrl = !string.IsNullOrEmpty(config.Url) ? config.Url : "http://localhost:11434";
+
+                var httpClient = _httpClientFactory.CreateClient("DeskDuck");
+                httpClient.BaseAddress = new Uri(ollamaUrl);
+
+                _client = new OllamaApiClient(httpClient)
                 {
-                    SelectedModel = _modelName
+                    SelectedModel = modelName
                 };
             }
             catch
@@ -96,11 +111,12 @@ namespace DeskDuck.Features.Chat
                     throw new InvalidOperationException("Ollama Client could not be initialized.");
                 }
 
-                string activeModel = string.IsNullOrWhiteSpace(modelName) ? _modelName : modelName;
+                var config = _optionsMonitor.CurrentValue;
+                string activeModel = string.IsNullOrWhiteSpace(modelName) ? (string.IsNullOrWhiteSpace(config.Model) ? "llama3.2:latest" : config.Model) : modelName;
 
                 List<Message> messages = [];
 
-                messages.Add(new Message(ChatRole.System, _modelPromt));
+                messages.Add(new Message(ChatRole.System, config.Prompt ?? string.Empty));
 
                 foreach (ChatMessage chatMsg in history)
                 {
@@ -133,8 +149,8 @@ namespace DeskDuck.Features.Chat
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Ollama error: {ex}");
-                return "Quack... ich finde gerade keine Verbindung zu meinem Gehirn. (Ollama-Dienst läuft nicht oder Modell ist nicht geladen)";
+                _logger.LogError(ex, "Ollama error");
+                return "Entschuldigung, ich konnte nicht mit meinem Gehirn (Ollama) verbinden.";
             }
         }
     }

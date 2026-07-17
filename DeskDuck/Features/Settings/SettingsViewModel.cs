@@ -1,12 +1,13 @@
 using System;
 using DeskDuck.Helper;
 using DeskDuck.Models;
-using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using DeskDuck.Features.Chat;
 using DeskDuck.Features.Weather;
 using DeskDuck.Features.SystemMonitor;
 using DeskDuck.Features.Messaging;
 using DeskDuck.ViewModel;
+using System.Windows.Input;
 
 namespace DeskDuck.Features.Settings
 {
@@ -14,9 +15,17 @@ namespace DeskDuck.Features.Settings
     /// View model for the settings window. Exposes bindable properties for all settings and
     /// delegates persistence to ISettingsRepository.
     /// </summary>
-    public partial class SettingsViewModel(ISettingsRepository settingsRepository) : ViewModelBase
+    public partial class SettingsViewModel : ViewModelBase
     {
-        private readonly ISettingsRepository _settingsRepository = settingsRepository;
+        private readonly ISettingsRepository _settingsRepository;
+        private readonly ILogger<SettingsViewModel> _logger;
+
+        public SettingsViewModel(ISettingsRepository settingsRepository, ILogger<SettingsViewModel> logger)
+        {
+            _settingsRepository = settingsRepository;
+            _logger = logger;
+            Load();
+        }
 
         public string ConfigPath => _settingsRepository.GetConfigPath();
         private bool _showCoordinatesEnabled = true;
@@ -156,7 +165,7 @@ namespace DeskDuck.Features.Settings
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[SettingsViewModel] Error loading config: {ex.Message}");
+                _logger.LogError(ex, "Error loading config");
             }
         }
 

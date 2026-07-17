@@ -1,6 +1,6 @@
 using DeskDuck.Models;
+using Microsoft.Extensions.Logging;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 
@@ -13,6 +13,13 @@ namespace DeskDuck.Features.Settings
     /// </summary>
     public class SettingsRepository : ISettingsRepository
     {
+        private readonly ILogger<SettingsRepository> _logger;
+
+        public SettingsRepository(ILogger<SettingsRepository> logger)
+        {
+            _logger = logger;
+        }
+
         public string GetConfigPath()
         {
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -58,7 +65,7 @@ namespace DeskDuck.Features.Settings
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[SettingsRepository] Error loading config: {ex.Message}");
+                _logger.LogError(ex, "Error loading config");
             }
             return new AppSettingsModel();
         }
@@ -78,7 +85,7 @@ namespace DeskDuck.Features.Settings
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[SettingsRepository] Error saving config: {ex.Message}");
+                _logger.LogError(ex, "Error saving config");
             }
         }
     }

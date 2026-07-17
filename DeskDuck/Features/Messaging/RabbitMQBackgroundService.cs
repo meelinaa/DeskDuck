@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using DeskDuck.Messages;
 using DeskDuck.Models;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -22,13 +23,17 @@ namespace DeskDuck.Features.Messaging
     public class RabbitMQBackgroundService : BackgroundService
     {
         private readonly IOptionsMonitor<RabbitMqOptions> _optionsMonitor;
+        private readonly ILogger<RabbitMQBackgroundService> _logger;
         private IConnection? _connection;
         private IChannel? _channel;
         private CancellationTokenSource? _reconnectCts;
 
-        public RabbitMQBackgroundService(IOptionsMonitor<RabbitMqOptions> optionsMonitor)
+        public RabbitMQBackgroundService(
+            IOptionsMonitor<RabbitMqOptions> optionsMonitor,
+            ILogger<RabbitMQBackgroundService> logger)
         {
             _optionsMonitor = optionsMonitor;
+            _logger = logger;
 
             _optionsMonitor.OnChange(config =>
             {
@@ -58,7 +63,7 @@ namespace DeskDuck.Features.Messaging
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[RabbitMQ Cleanup] Error closing channel: {ex.Message}");
+                    _logger.LogError(ex, "Error closing channel");
                 }
                 finally
                 {
@@ -78,7 +83,7 @@ namespace DeskDuck.Features.Messaging
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[RabbitMQ Cleanup] Error closing connection: {ex.Message}");
+                    _logger.LogError(ex, "Error closing connection");
                 }
                 finally
                 {
@@ -149,7 +154,7 @@ namespace DeskDuck.Features.Messaging
                         }
                         catch (Exception ex)
                         {
-                            Debug.WriteLine($"Error processing message: {ex.Message}");
+                            _logger.LogError(ex, "Error processing message");
                         }
                         finally
                         {
@@ -162,7 +167,7 @@ namespace DeskDuck.Features.Messaging
                             }
                             catch (Exception ex)
                             {
-                                Debug.WriteLine($"Error sending BasicAck: {ex.Message}");
+                                _logger.LogError(ex, "Error sending BasicAck");
                             }
                         }
                     };
@@ -184,7 +189,7 @@ namespace DeskDuck.Features.Messaging
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"RabbitMQ connection failed: {ex.Message}. Retrying in 5 seconds...");
+                    _logger.LogError(ex, "RabbitMQ connection failed. Retrying in 5 seconds...");
                     try { await Task.Delay(5000, stoppingToken); } catch { }
                 }
                 finally

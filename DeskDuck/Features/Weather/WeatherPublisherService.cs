@@ -23,16 +23,19 @@ namespace DeskDuck.Features.Weather
         private readonly IOptionsMonitor<WeatherPublisherOptions> _optionsMonitor;
         private readonly RabbitMqPublisher _publisher;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ILogger<WeatherPublisherService> _logger;
         private CancellationTokenSource? _delayCts;
 
         public WeatherPublisherService(
             IOptionsMonitor<WeatherPublisherOptions> optionsMonitor,
             RabbitMqPublisher publisher,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            ILogger<WeatherPublisherService> logger)
         {
             _optionsMonitor = optionsMonitor;
             _publisher = publisher;
             _httpClientFactory = httpClientFactory;
+            _logger = logger;
 
             _optionsMonitor.OnChange(config =>
             {
@@ -59,7 +62,7 @@ namespace DeskDuck.Features.Weather
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"[WeatherPublisher] Error publishing weather: {ex.Message}");
+                        _logger.LogError(ex, "Error publishing weather");
                     }
                 }
 
@@ -93,7 +96,7 @@ namespace DeskDuck.Features.Weather
         {
             if (string.IsNullOrWhiteSpace(config.ApiKey))
             {
-                Debug.WriteLine("[WeatherPublisher] OpenWeatherMap ApiKey is empty. Skipping weather update.");
+                _logger.LogWarning("OpenWeatherMap ApiKey is empty. Skipping weather update.");
                 return;
             }
 
@@ -105,7 +108,7 @@ namespace DeskDuck.Features.Weather
             try
             {
                 string url = $"https://api.openweathermap.org/data/2.5/weather?q={Uri.EscapeDataString(city)}&appid={config.ApiKey}&units=metric&lang=de";
-                var httpClient = _httpClientFactory.CreateClient();
+                var httpClient = _httpClientFactory.CreateClient("DeskDuck");
                 string response = await httpClient.GetStringAsync(url, cancellationToken);
 
                 using JsonDocument doc = JsonDocument.Parse(response);
@@ -138,7 +141,7 @@ namespace DeskDuck.Features.Weather
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[WeatherPublisher] Error fetching weather from API: {ex.Message}");
+                _logger.LogError(ex, "Error fetching weather from API");
             }
         }
     }

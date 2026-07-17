@@ -11,8 +11,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.UI.Xaml;
-using System.IO;
+using Serilog;
 using System;
+using System.IO;
 
 namespace DeskDuck
 {
@@ -34,10 +35,17 @@ namespace DeskDuck
         {
             InitializeComponent();
 
+            Log.Logger = new LoggerConfiguration()
+                .Enrich.FromLogContext()
+                .WriteTo.Console()
+                .WriteTo.File(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DeskDuck", "logs", "deskduck.log"), rollingInterval: RollingInterval.Day)
+                .CreateLogger();
+
             Host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+                .UseSerilog()
                 .ConfigureAppConfiguration((hostingContext, config) =>
                 {
-                    var settingsRepo = new SettingsRepository();
+                    var settingsRepo = new SettingsRepository(Microsoft.Extensions.Logging.Abstractions.NullLogger<SettingsRepository>.Instance);
                     string configPath = settingsRepo.GetConfigPath();
                     config.SetBasePath(Path.GetDirectoryName(configPath)!);
                     config.AddJsonFile(Path.GetFileName(configPath), optional: false, reloadOnChange: true);

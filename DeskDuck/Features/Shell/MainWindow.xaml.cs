@@ -12,6 +12,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Diagnostics;
 using Windows.Graphics;
@@ -34,6 +35,9 @@ namespace DeskDuck.Features.Shell
         private readonly DuckMovementManager _movementManager;
         private readonly ISettingsRepository _settingsRepository;
         private readonly IServiceProvider _serviceProvider;
+        private readonly ILogger<MainWindow> _logger;
+        private readonly ILoggerFactory _loggerFactory;
+        private readonly IWindowService _windowService;
 
         public MainViewModel MainViewModel { get; }
 
@@ -45,10 +49,16 @@ namespace DeskDuck.Features.Shell
             IServiceProvider serviceProvider,
             ISettingsRepository settingsRepository,
             IOptions<DuckConfig> duckConfig,
-            IOptionsMonitor<GeneralSection> generalConfig)
+            IOptionsMonitor<GeneralSection> generalConfig,
+            ILogger<MainWindow> logger,
+            ILoggerFactory loggerFactory,
+            IWindowService windowService)
         {
             _serviceProvider = serviceProvider;
             _settingsRepository = settingsRepository;
+            _logger = logger;
+            _loggerFactory = loggerFactory;
+            _windowService = windowService;
 
             InitializeComponent();
             
@@ -82,16 +92,16 @@ namespace DeskDuck.Features.Shell
         {
             try
             {
-                nint hwnd = WindowNative.GetWindowHandle(this);
-                Win32WindowHelper.UnregisterHotkey(hwnd, Win32WindowHelper.HOTKEY_ID);
+                IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                _windowService.UnregisterHotkey(hwnd, _windowService.HotkeyId);
                 if (_subclassProc != null)
                 {
-                    Win32WindowHelper.RemoveSubclass(hwnd, _subclassProc, new IntPtr(1));
+                    _windowService.RemoveSubclass(hwnd, _subclassProc, new IntPtr(1));
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Hotkey Cleanup] Error: {ex.Message}");
+                _logger.LogError(ex, "Hotkey Cleanup Error");
             }
 
             try
@@ -104,7 +114,7 @@ namespace DeskDuck.Features.Shell
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Movement Cleanup] Error: {ex.Message}");
+                _logger.LogError(ex, "Movement Cleanup Error");
             }
 
 
@@ -220,7 +230,7 @@ namespace DeskDuck.Features.Shell
             }
 
             var settingsViewModel = _serviceProvider.GetRequiredService<SettingsViewModel>();
-            _settingsWindow = new SettingsWindow(settingsViewModel);
+            _settingsWindow = new SettingsWindow(settingsViewModel, _loggerFactory.CreateLogger<SettingsWindow>());
             AppWindow settingsAppWindow = _settingsWindow.AppWindow;
 
             settingsAppWindow.Changed += SettingsAppWindow_Changed;
@@ -283,7 +293,10 @@ namespace DeskDuck.Features.Shell
                 _movementManager.Pause();
                 UpdateDuckVisual(DuckState.Held);
 
-                Win32WindowHelper.GetCursorPosition(out _dragStartCursorPos);
+                if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
+                {
+                    _windowService.GetCursorPosition(out _dragStartCursorPos);
+                }
                 _dragStartWindowPos = new PointInt32(AppWindow.Position.X, AppWindow.Position.Y);
 
                 (sender as UIElement)?.CapturePointer(e.Pointer);
@@ -304,17 +317,18 @@ namespace DeskDuck.Features.Shell
         /// </summary>
         private void DuckImage_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
-            if (!_isDragging) return;
+            if (_isDragging && e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
+            {
+                _windowService.GetCursorPosition(out Win32WindowHelper.PointStruct currentCursorPos);
+                int deltaX = currentCursorPos.X - _dragStartCursorPos.X;
+                int deltaY = currentCursorPos.Y - _dragStartCursorPos.Y;
 
-            Win32WindowHelper.GetCursorPosition(out Win32WindowHelper.PointStruct currentCursorPos);
-            int deltaX = currentCursorPos.X - _dragStartCursorPos.X;
-            int deltaY = currentCursorPos.Y - _dragStartCursorPos.Y;
+                int newX = _dragStartWindowPos.X + deltaX;
+                int newY = _dragStartWindowPos.Y + deltaY;
 
-            int newX = _dragStartWindowPos.X + deltaX;
-            int newY = _dragStartWindowPos.Y + deltaY;
-
-            AppWindow.Move(new PointInt32(newX, newY));
-            MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
+                AppWindow.Move(new PointInt32(newX, newY));
+                MainViewModel.CoordinatesText = $"X: {newX}, Y: {newY}";
+            }
         }
 
         /// <summary>
@@ -382,8 +396,7 @@ namespace DeskDuck.Features.Shell
             SystemBackdrop = new TransparentBackdrop();
 
             AppWindow appWindow = this.AppWindow;
-            nint hwnd = WindowNative.GetWindowHandle(this);
-
+            
             OverlappedPresenter presenter = OverlappedPresenter.CreateForToolWindow();
             presenter.IsAlwaysOnTop = true;
             presenter.SetBorderAndTitleBar(false, false);
@@ -391,17 +404,18 @@ namespace DeskDuck.Features.Shell
 
             appWindow.Resize(new SizeInt32(300, 300));
 
-            Win32WindowHelper.ConfigureOverlayStyles(hwnd);
+            IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            _windowService.ConfigureOverlayStyles(hwnd);
 
             try
             {
                 _subclassProc = new Win32WindowHelper.SUBCLASSPROC(NewWindowProc);
-                Win32WindowHelper.RegisterSubclass(hwnd, _subclassProc, new IntPtr(1), IntPtr.Zero);
-                Win32WindowHelper.RegisterHotkey(hwnd, Win32WindowHelper.HOTKEY_ID, Win32WindowHelper.MOD_CONTROL | Win32WindowHelper.MOD_ALT | Win32WindowHelper.MOD_SHIFT, Win32WindowHelper.VK_D);
+                _windowService.RegisterSubclass(hwnd, _subclassProc, new IntPtr(1), IntPtr.Zero);
+                _windowService.RegisterHotkey(hwnd, _windowService.HotkeyId, _windowService.ModControl | _windowService.ModAlt | _windowService.ModShift, _windowService.VkD);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Hotkey Registration] Failed: {ex.Message}");
+                _logger.LogError(ex, "Hotkey Registration Failed");
             }
         }
 
@@ -413,7 +427,7 @@ namespace DeskDuck.Features.Shell
         /// </summary>
         private IntPtr NewWindowProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData)
         {
-            if (uMsg == Win32WindowHelper.WM_HOTKEY && wParam.ToInt32() == Win32WindowHelper.HOTKEY_ID)
+            if (uMsg == _windowService.WmHotkey && wParam.ToInt32() == _windowService.HotkeyId)
             {
                 if (!_isDragging && !_isChatActive && !_isSettingsActive && !_isContextMenuOpen && _movementManager != null)
                 {
@@ -432,7 +446,7 @@ namespace DeskDuck.Features.Shell
                 return IntPtr.Zero;
             }
 
-            return Win32WindowHelper.DefaultSubclassProc(hWnd, uMsg, wParam, lParam);
+            return _windowService.DefaultSubclassProc(hWnd, uMsg, wParam, lParam);
         }
 
     }

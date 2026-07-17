@@ -1,4 +1,5 @@
 using DeskDuck.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using System;
@@ -19,6 +20,7 @@ namespace DeskDuck.Features.Messaging
     public partial class RabbitMqPublisher : IRabbitMqPublisher, IDisposable
     {
         private readonly IOptionsMonitor<RabbitMqOptions> _optionsMonitor;
+        private readonly ILogger<RabbitMqPublisher> _logger;
         private IConnection? _connection;
         private IChannel? _channel;
         private readonly SemaphoreSlim _connectionSemaphore = new(1, 1);
@@ -26,9 +28,12 @@ namespace DeskDuck.Features.Messaging
         /// <summary>
         /// Initializes the publisher with the injected RabbitMQ options.
         /// </summary>
-        public RabbitMqPublisher(IOptionsMonitor<RabbitMqOptions> optionsMonitor)
+        public RabbitMqPublisher(
+            IOptionsMonitor<RabbitMqOptions> optionsMonitor,
+            ILogger<RabbitMqPublisher> logger)
         {
             _optionsMonitor = optionsMonitor;
+            _logger = logger;
 
             _optionsMonitor.OnChange(async config =>
             {
@@ -144,11 +149,11 @@ namespace DeskDuck.Features.Messaging
                     body: body,
                     cancellationToken: cancellationToken);
 
-                Debug.WriteLine($"[RabbitMqPublisher] Published message from source {source} to RabbitMQ");
+                _logger.LogInformation("Published message from source {Source} to RabbitMQ", source);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[RabbitMqPublisher] Error publishing: {ex.Message}");
+                _logger.LogError(ex, "Error publishing message");
             }
         }
 
