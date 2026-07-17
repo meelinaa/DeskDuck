@@ -5,6 +5,7 @@ using DeskDuck.Features.SystemMonitor;
 using DeskDuck.Features.Settings;
 using DeskDuck.Features.Messaging;
 using DeskDuck.Features.Shell;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Polly;
@@ -30,6 +31,9 @@ namespace DeskDuck.Core
             services.AddHttpClient("DeskDuck")
                 .AddPolicyHandler(GetRetryPolicy());
 
+            // Messenger
+            services.AddSingleton<IMessenger>(WeakReferenceMessenger.Default);
+
             // Settings
             services.AddSingleton<ISettingsRepository, SettingsRepository>();
             services.AddTransient<SettingsViewModel>();
@@ -45,7 +49,7 @@ namespace DeskDuck.Core
             services.AddTransient<ChatViewModel>();
 
             // Messaging
-            services.AddSingleton<RabbitMqPublisher>();
+            services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
             services.AddHostedService<RabbitMQBackgroundService>();
 
             // Background Publishers

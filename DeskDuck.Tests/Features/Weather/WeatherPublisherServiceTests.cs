@@ -6,7 +6,6 @@ using Moq;
 using Moq.Protected;
 using System.Net;
 using System.Net.Http;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -35,16 +34,6 @@ namespace DeskDuck.Tests.Features.Weather
                 IntervalMinutes = 10
             };
             _mockOptions.Setup(o => o.CurrentValue).Returns(config);
-        }
-
-        private async Task InvokePublishWeatherUpdateAsync(WeatherPublisherService service, WeatherPublisherOptions config)
-        {
-            var method = typeof(WeatherPublisherService).GetMethod("PublishWeatherUpdateAsync", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (method != null)
-            {
-                var task = (Task)method.Invoke(service, new object[] { config, CancellationToken.None })!;
-                await task;
-            }
         }
 
         [Fact]
@@ -88,7 +77,7 @@ namespace DeskDuck.Tests.Features.Weather
                 _mockLogger.Object);
 
             // Act
-            await InvokePublishWeatherUpdateAsync(service, _mockOptions.Object.CurrentValue);
+            await service.PublishWeatherUpdateAsync(_mockOptions.Object.CurrentValue, CancellationToken.None);
 
             // Assert
             _mockPublisher.Verify(p => p.PublishAsync(
@@ -119,7 +108,7 @@ namespace DeskDuck.Tests.Features.Weather
                 _mockLogger.Object);
 
             // Act
-            await InvokePublishWeatherUpdateAsync(service, _mockOptions.Object.CurrentValue);
+            await service.PublishWeatherUpdateAsync(_mockOptions.Object.CurrentValue, CancellationToken.None);
 
             // Assert
             _mockPublisher.Verify(p => p.PublishAsync(
@@ -158,7 +147,7 @@ namespace DeskDuck.Tests.Features.Weather
                 _mockLogger.Object);
 
             // Act
-            await InvokePublishWeatherUpdateAsync(service, _mockOptions.Object.CurrentValue);
+            await service.PublishWeatherUpdateAsync(_mockOptions.Object.CurrentValue, CancellationToken.None);
 
             // Assert
             _mockPublisher.Verify(p => p.PublishAsync(

@@ -15,8 +15,8 @@ namespace DeskDuck.Features.Weather
     /// <summary>
     /// Hosted background service that periodically fetches the current weather
     /// from the OpenWeatherMap API and publishes it as an informational notification
-    /// to RabbitMQ. When no city is explicitly configured, the user's location is
-    /// auto-detected via the ip-api.com geolocation endpoint.
+    /// to RabbitMQ. When no city is explicitly configured via <see cref="WeatherPublisherOptions.OverrideCity"/>,
+    /// "Berlin" is used as the default city.
     /// </summary>
     public partial class WeatherPublisherService : BackgroundService
     {
@@ -92,7 +92,7 @@ namespace DeskDuck.Features.Weather
         /// to determine the user's city from their public IP address. Returns early if the
         /// API key is missing or the city cannot be determined.
         /// </summary>
-        private async Task PublishWeatherUpdateAsync(WeatherPublisherOptions config, CancellationToken cancellationToken)
+        internal async Task PublishWeatherUpdateAsync(WeatherPublisherOptions config, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(config.ApiKey))
             {

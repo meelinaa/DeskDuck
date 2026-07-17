@@ -3,7 +3,6 @@ using DeskDuck.Features.SystemMonitor;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -37,16 +36,6 @@ namespace DeskDuck.Tests.Features.SystemMonitor
             _mockOptions.Setup(o => o.CurrentValue).Returns(config);
         }
 
-        private async Task InvokeCheckSystemMetricsAsync(SystemMonitorPublisherService service, SystemMonitorOptions config)
-        {
-            var method = typeof(SystemMonitorPublisherService).GetMethod("CheckSystemMetricsAsync", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (method != null)
-            {
-                var task = (Task)method.Invoke(service, new object[] { config, CancellationToken.None })!;
-                await task;
-            }
-        }
-
         [Fact]
         public async Task CheckSystemMetrics_WhenRamExceedsThreshold_PublishesWarning()
         {
@@ -62,7 +51,7 @@ namespace DeskDuck.Tests.Features.SystemMonitor
                 _mockMetrics.Object);
 
             // Act
-            await InvokeCheckSystemMetricsAsync(service, _mockOptions.Object.CurrentValue);
+            await service.CheckSystemMetricsAsync(_mockOptions.Object.CurrentValue, CancellationToken.None);
 
             // Assert
             _mockPublisher.Verify(p => p.PublishAsync(
@@ -88,7 +77,7 @@ namespace DeskDuck.Tests.Features.SystemMonitor
                 _mockMetrics.Object);
 
             // Act
-            await InvokeCheckSystemMetricsAsync(service, _mockOptions.Object.CurrentValue);
+            await service.CheckSystemMetricsAsync(_mockOptions.Object.CurrentValue, CancellationToken.None);
 
             // Assert
             _mockPublisher.Verify(p => p.PublishAsync(
@@ -126,7 +115,7 @@ namespace DeskDuck.Tests.Features.SystemMonitor
                 _mockMetrics.Object);
 
             // Act
-            await InvokeCheckSystemMetricsAsync(service, invalidConfig);
+            await service.CheckSystemMetricsAsync(invalidConfig, CancellationToken.None);
 
             // Assert
             // RAM = 90 < 100, so NO warning for RAM

@@ -22,11 +22,13 @@ namespace DeskDuck.Features.Shell
         private Visibility _titleVisibility = Visibility.Collapsed;
         private Brush _notificationTextBrush = new SolidColorBrush(Microsoft.UI.Colors.Black);
         private readonly DispatcherQueue _dispatcherQueue;
+        private readonly IMessenger _messenger;
 
-        public MainViewModel(DispatcherQueue dispatcherQueue)
+        public MainViewModel(DispatcherQueue dispatcherQueue, IMessenger messenger)
         {
             _dispatcherQueue = dispatcherQueue;
-            WeakReferenceMessenger.Default.RegisterAll(this);
+            _messenger = messenger;
+            _messenger.RegisterAll(this);
         }
 
         public void Receive(ShowNotificationMessage message)

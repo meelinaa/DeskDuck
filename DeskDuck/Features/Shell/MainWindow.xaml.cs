@@ -52,7 +52,8 @@ namespace DeskDuck.Features.Shell
             IOptionsMonitor<GeneralSection> generalConfig,
             ILogger<MainWindow> logger,
             ILoggerFactory loggerFactory,
-            IWindowService windowService)
+            IWindowService windowService,
+            CommunityToolkit.Mvvm.Messaging.IMessenger messenger)
         {
             _serviceProvider = serviceProvider;
             _settingsRepository = settingsRepository;
@@ -62,7 +63,7 @@ namespace DeskDuck.Features.Shell
 
             InitializeComponent();
             
-            MainViewModel = new MainViewModel(DispatcherQueue);
+            MainViewModel = new MainViewModel(DispatcherQueue, messenger);
             
             ConfigureOverlayWindow();
 
@@ -75,7 +76,7 @@ namespace DeskDuck.Features.Shell
                 });
             });
 
-            _movementManager = new DuckMovementManager(AppWindow, DispatcherQueue, duckConfig);
+            _movementManager = new DuckMovementManager(AppWindow, DispatcherQueue, duckConfig, _loggerFactory.CreateLogger<DuckMovementManager>());
             _movementManager.StateChanged += OnDuckStateChanged;
             _movementManager.PositionChanged += OnDuckPositionChanged;
             _movementManager.Start();

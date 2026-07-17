@@ -24,16 +24,19 @@ namespace DeskDuck.Features.Messaging
     {
         private readonly IOptionsMonitor<RabbitMqOptions> _optionsMonitor;
         private readonly ILogger<RabbitMQBackgroundService> _logger;
+        private readonly IMessenger _messenger;
         private IConnection? _connection;
         private IChannel? _channel;
         private CancellationTokenSource? _reconnectCts;
 
         public RabbitMQBackgroundService(
             IOptionsMonitor<RabbitMqOptions> optionsMonitor,
-            ILogger<RabbitMQBackgroundService> logger)
+            ILogger<RabbitMQBackgroundService> logger,
+            IMessenger messenger)
         {
             _optionsMonitor = optionsMonitor;
             _logger = logger;
+            _messenger = messenger;
 
             _optionsMonitor.OnChange(config =>
             {
@@ -145,11 +148,11 @@ namespace DeskDuck.Features.Messaging
 
                             if (notification != null)
                             {
-                                WeakReferenceMessenger.Default.Send(new ShowNotificationMessage(notification));
+                                _messenger.Send(new ShowNotificationMessage(notification));
 
                                 await Task.Delay(TimeSpan.FromSeconds(30), token);
 
-                                WeakReferenceMessenger.Default.Send(new HideNotificationMessage());
+                                _messenger.Send(new HideNotificationMessage());
                             }
                         }
                         catch (Exception ex)

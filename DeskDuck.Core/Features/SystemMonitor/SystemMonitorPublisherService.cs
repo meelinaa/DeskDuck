@@ -96,7 +96,7 @@ namespace DeskDuck.Features.SystemMonitor
         /// Clears the triggered flag once the metric returns to a safe level so subsequent
         /// breaches will generate a new warning.
         /// </summary>
-        private async Task CheckSystemMetricsAsync(SystemMonitorOptions config, CancellationToken cancellationToken)
+        internal async Task CheckSystemMetricsAsync(SystemMonitorOptions config, CancellationToken cancellationToken)
         {
             if (config.BatteryWarningEnabled)
             {

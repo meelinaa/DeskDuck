@@ -1,5 +1,6 @@
 using DeskDuck.Enums;
 using DeskDuck.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
@@ -22,6 +23,7 @@ namespace DeskDuck.Manager
         private readonly DispatcherQueueTimer _movementTimer;
         private readonly Random _random = new();
         private readonly DuckConfig _config;
+        private readonly ILogger<DuckMovementManager> _logger;
 
         private double _currentX;
         private double _currentY;
@@ -72,10 +74,11 @@ namespace DeskDuck.Manager
             PositionChanged?.Invoke((int)_currentX, (int)_currentY);
         }
 
-        public DuckMovementManager(AppWindow appWindow, DispatcherQueue dispatcherQueue, IOptions<DuckConfig> config)
+        public DuckMovementManager(AppWindow appWindow, DispatcherQueue dispatcherQueue, IOptions<DuckConfig> config, ILogger<DuckMovementManager> logger)
         {
             _appWindow = appWindow;
             _config = config.Value;
+            _logger = logger;
             _stateMachine = new DuckStateMachine();
 
             var display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
@@ -95,64 +98,71 @@ namespace DeskDuck.Manager
 
         private async void OnStateMachineTransitioned(DuckState state)
         {
-            StateChanged?.Invoke(state);
-
-            if (state == DuckState.Waiting)
+            try
             {
-                _movementTimer.Stop();
-                _waitCts?.Cancel();
-                _waitCts = new System.Threading.CancellationTokenSource();
-                var token = _waitCts.Token;
+                StateChanged?.Invoke(state);
 
-                int waitTimeMs = _random.Next(_config.MinWaitSeconds * 1000, (_config.MaxWaitSeconds + 1) * 1000);
-                
-                try
+                if (state == DuckState.Waiting)
                 {
-                    await Task.Delay(waitTimeMs, token);
-                }
-                catch (TaskCanceledException)
-                {
-                    return;
-                }
+                    _movementTimer.Stop();
+                    _waitCts?.Cancel();
+                    _waitCts = new System.Threading.CancellationTokenSource();
+                    var token = _waitCts.Token;
 
-                if (_stateMachine.CurrentState != DuckState.Waiting) return;
+                    int waitTimeMs = _random.Next(_config.MinWaitSeconds * 1000, (_config.MaxWaitSeconds + 1) * 1000);
 
-                var display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
-                int maxX = display.OuterBounds.Width - _appWindow.Size.Width;
-                int maxY = display.OuterBounds.Height - _appWindow.Size.Height;
+                    try
+                    {
+                        await Task.Delay(waitTimeMs, token);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        return;
+                    }
 
-                _targetX = _random.Next(0, Math.Max(1, maxX));
-                _targetY = _random.Next(0, Math.Max(1, maxY));
+                    if (_stateMachine.CurrentState != DuckState.Waiting) return;
 
-                double distanceX = _targetX - _currentX;
-                double distanceY = _targetY - _currentY;
-                double distance = Math.Sqrt(distanceX * distanceX + distanceY * distanceY);
+                    var display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
+                    int maxX = display.OuterBounds.Width - _appWindow.Size.Width;
+                    int maxY = display.OuterBounds.Height - _appWindow.Size.Height;
 
-                if (distance > 1)
-                {
-                    _dx = (distanceX / distance) * _config.Speed;
-                    _dy = (distanceY / distance) * _config.Speed;
-                    
-                    if (_targetX < _currentX)
-                        _stateMachine.Fire(DuckTrigger.StartWalkingLeft);
+                    _targetX = _random.Next(0, Math.Max(1, maxX));
+                    _targetY = _random.Next(0, Math.Max(1, maxY));
+
+                    double distanceX = _targetX - _currentX;
+                    double distanceY = _targetY - _currentY;
+                    double distance = Math.Sqrt(distanceX * distanceX + distanceY * distanceY);
+
+                    if (distance > 1)
+                    {
+                        _dx = (distanceX / distance) * _config.Speed;
+                        _dy = (distanceY / distance) * _config.Speed;
+
+                        if (_targetX < _currentX)
+                            _stateMachine.Fire(DuckTrigger.StartWalkingLeft);
+                        else
+                            _stateMachine.Fire(DuckTrigger.StartWalkingRight);
+                    }
                     else
-                        _stateMachine.Fire(DuckTrigger.StartWalkingRight);
+                    {
+                        // If target is same as current position, just wait again
+                        _stateMachine.Fire(DuckTrigger.StartWalkingLeft);
+                        _stateMachine.Fire(DuckTrigger.ReachDestination);
+                    }
                 }
-                else
+                else if (state == DuckState.WalkingLeft || state == DuckState.WalkingRight)
                 {
-                    // If target is same as current position, just wait again
-                    _stateMachine.Fire(DuckTrigger.StartWalkingLeft);
-                    _stateMachine.Fire(DuckTrigger.ReachDestination);
+                    _movementTimer.Start();
+                }
+                else if (state == DuckState.Held || state == DuckState.Stopped)
+                {
+                    _waitCts?.Cancel();
+                    _movementTimer.Stop();
                 }
             }
-            else if (state == DuckState.WalkingLeft || state == DuckState.WalkingRight)
+            catch (Exception ex)
             {
-                _movementTimer.Start();
-            }
-            else if (state == DuckState.Held || state == DuckState.Stopped)
-            {
-                _waitCts?.Cancel();
-                _movementTimer.Stop();
+                _logger.LogError(ex, "Unhandled error in state transition to {State}", state);
             }
         }
 
