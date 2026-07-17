@@ -19,13 +19,23 @@ namespace DeskDuck.Features.Messaging
     /// dispatches incoming notification messages to the UI via IMessenger.
     /// Automatically reconnects on connection failures with a 5-second retry delay.
     /// </summary>
-    public class RabbitMQBackgroundService(
-        IOptions<RabbitMqOptions> options) : BackgroundService
+    public class RabbitMQBackgroundService : BackgroundService
     {
-        private readonly RabbitMqOptions _rabbitMqOptions = options.Value;
+        private readonly IOptionsMonitor<RabbitMqOptions> _optionsMonitor;
         private IConnection? _connection;
         private IChannel? _channel;
-        private readonly string _queue = options.Value.QueueName;
+        private CancellationTokenSource? _reconnectCts;
+
+        public RabbitMQBackgroundService(IOptionsMonitor<RabbitMqOptions> optionsMonitor)
+        {
+            _optionsMonitor = optionsMonitor;
+
+            _optionsMonitor.OnChange(config =>
+            {
+                // Trigger a cancellation to reconnect with the new settings
+                _reconnectCts?.Cancel();
+            });
+        }
         public override async Task StopAsync(CancellationToken cancellationToken)
         {
             await CleanupRabbitMqResourcesAsync();
@@ -86,31 +96,35 @@ namespace DeskDuck.Features.Messaging
         /// </summary>
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            var factory = new ConnectionFactory()
-            {
-                HostName = _rabbitMqOptions.HostName,
-                UserName = _rabbitMqOptions.UserName,
-                Password = _rabbitMqOptions.Password
-            };
-
             while (!stoppingToken.IsCancellationRequested)
             {
+                var config = _optionsMonitor.CurrentValue;
+                var factory = new ConnectionFactory()
+                {
+                    HostName = config.HostName,
+                    UserName = config.UserName,
+                    Password = config.Password
+                };
+
                 try
                 {
+                    _reconnectCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                    var token = _reconnectCts.Token;
+
                     await CleanupRabbitMqResourcesAsync();
 
-                    _connection = await factory.CreateConnectionAsync(stoppingToken);
-                    _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
+                    _connection = await factory.CreateConnectionAsync(token);
+                    _channel = await _connection.CreateChannelAsync(cancellationToken: token);
 
                     await _channel.QueueDeclareAsync(
-                        queue: _queue,
+                        queue: config.QueueName,
                         durable: true,
                         exclusive: false,
                         autoDelete: false,
                         arguments: null,
-                        cancellationToken: stoppingToken);
+                        cancellationToken: token);
 
-                    await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, cancellationToken: stoppingToken);
+                    await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, cancellationToken: token);
 
                     var consumer = new AsyncEventingBasicConsumer(_channel);
                     consumer.ReceivedAsync += async (model, ea) =>
@@ -128,7 +142,7 @@ namespace DeskDuck.Features.Messaging
                             {
                                 WeakReferenceMessenger.Default.Send(new ShowNotificationMessage(notification));
 
-                                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                                await Task.Delay(TimeSpan.FromSeconds(30), token);
 
                                 WeakReferenceMessenger.Default.Send(new HideNotificationMessage());
                             }
@@ -143,7 +157,7 @@ namespace DeskDuck.Features.Messaging
                             {
                                 if (_channel != null && _channel.IsOpen)
                                 {
-                                    await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
+                                    await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: token);
                                 }
                             }
                             catch (Exception ex)
@@ -154,20 +168,29 @@ namespace DeskDuck.Features.Messaging
                     };
 
                     await _channel.BasicConsumeAsync(
-                        queue: _queue,
+                        queue: config.QueueName,
                         autoAck: false,
                         consumer: consumer,
-                        cancellationToken: stoppingToken);
+                        cancellationToken: token);
 
-                    while (_connection.IsOpen && !stoppingToken.IsCancellationRequested)
+                    while (_connection.IsOpen && !token.IsCancellationRequested)
                     {
-                        await Task.Delay(1000, stoppingToken);
+                        await Task.Delay(1000, token);
                     }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Reconnection requested due to options change or application stop
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"RabbitMQ connection failed: {ex.Message}. Retrying in 5 seconds...");
-                    await Task.Delay(5000, stoppingToken);
+                    try { await Task.Delay(5000, stoppingToken); } catch { }
+                }
+                finally
+                {
+                    _reconnectCts?.Dispose();
+                    _reconnectCts = null;
                 }
             }
         }

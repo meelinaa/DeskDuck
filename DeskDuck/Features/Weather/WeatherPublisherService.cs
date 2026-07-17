@@ -18,14 +18,28 @@ namespace DeskDuck.Features.Weather
     /// to RabbitMQ. When no city is explicitly configured, the user's location is
     /// auto-detected via the ip-api.com geolocation endpoint.
     /// </summary>
-    public partial class WeatherPublisherService(
-        IOptions<WeatherPublisherOptions> options,
-        RabbitMqPublisher publisher,
-        IHttpClientFactory httpClientFactory) : BackgroundService
+    public partial class WeatherPublisherService : BackgroundService
     {
-        private readonly IOptions<WeatherPublisherOptions> _options = options;
-        private readonly RabbitMqPublisher _publisher = publisher;
-        private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
+        private readonly IOptionsMonitor<WeatherPublisherOptions> _optionsMonitor;
+        private readonly RabbitMqPublisher _publisher;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private CancellationTokenSource? _delayCts;
+
+        public WeatherPublisherService(
+            IOptionsMonitor<WeatherPublisherOptions> optionsMonitor,
+            RabbitMqPublisher publisher,
+            IHttpClientFactory httpClientFactory)
+        {
+            _optionsMonitor = optionsMonitor;
+            _publisher = publisher;
+            _httpClientFactory = httpClientFactory;
+
+            _optionsMonitor.OnChange(config =>
+            {
+                // Cancel the delay to immediately pick up new configuration
+                _delayCts?.Cancel();
+            });
+        }
 
         /// <summary>
         /// Main service loop. Reads the latest configuration on every iteration so that
@@ -36,7 +50,7 @@ namespace DeskDuck.Features.Weather
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                WeatherPublisherOptions config = _options.Value;
+                WeatherPublisherOptions config = _optionsMonitor.CurrentValue;
                 if (config.Enabled)
                 {
                     try
@@ -50,7 +64,22 @@ namespace DeskDuck.Features.Weather
                 }
 
                 int intervalMinutes = Math.Max(1, config.IntervalMinutes);
-                await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), stoppingToken);
+                
+                try
+                {
+                    _delayCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                    await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), _delayCts.Token);
+                }
+                catch (TaskCanceledException)
+                {
+                    // If cancellation was triggered by options change, stoppingToken won't be cancelled.
+                    // The loop will just immediately iterate and pick up new options.
+                }
+                finally
+                {
+                    _delayCts?.Dispose();
+                    _delayCts = null;
+                }
             }
         }
 

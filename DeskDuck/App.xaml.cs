@@ -6,6 +6,7 @@ using DeskDuck.Features.Weather;
 using DeskDuck.Features.SystemMonitor;
 using DeskDuck.Features.Settings;
 using DeskDuck.Features.Messaging;
+using DeskDuck.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -43,24 +44,7 @@ namespace DeskDuck
                 })
                 .ConfigureServices((context, services) =>
                 {
-                    services.Configure<SystemMonitorOptions>(context.Configuration.GetSection("Publishers:SystemMonitor"));
-                    services.Configure<WeatherPublisherOptions>(context.Configuration.GetSection("Publishers:Weather"));
-                    services.Configure<RabbitMqOptions>(context.Configuration.GetSection("RabbitMQ"));
-                    services.Configure<OllamaOptions>(context.Configuration.GetSection("Ollama"));
-                    services.Configure<DuckConfig>(context.Configuration.GetSection("Duck"));
-                    services.Configure<GeneralSection>(context.Configuration.GetSection("General"));
-
-                    services.AddHttpClient();
-                    services.AddSingleton<RabbitMqPublisher>();
-                    services.AddSingleton<IOllamaChatService, OllamaChatService>();
-                    services.AddTransient<ChatViewModel>();
-                    
-                    services.AddSingleton<ISettingsRepository, SettingsRepository>();
-                    services.AddTransient<SettingsViewModel>();
-                    services.AddSingleton<MainWindow>();
-                    services.AddHostedService<SystemMonitorPublisherService>();
-                    services.AddHostedService<WeatherPublisherService>();
-                    services.AddHostedService<RabbitMQBackgroundService>();
+                    services.AddDeskDuckFeatures(context.Configuration);
                 })
                 .Build();
         }

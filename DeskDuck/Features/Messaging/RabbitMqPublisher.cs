@@ -18,26 +18,32 @@ namespace DeskDuck.Features.Messaging
     /// </summary>
     public partial class RabbitMqPublisher : IRabbitMqPublisher, IDisposable
     {
-        private readonly ConnectionFactory _factory;
+        private readonly IOptionsMonitor<RabbitMqOptions> _optionsMonitor;
         private IConnection? _connection;
         private IChannel? _channel;
         private readonly SemaphoreSlim _connectionSemaphore = new(1, 1);
 
-        private readonly string _queueName;
-
         /// <summary>
         /// Initializes the publisher with the injected RabbitMQ options.
         /// </summary>
-        public RabbitMqPublisher(IOptions<RabbitMqOptions> options)
+        public RabbitMqPublisher(IOptionsMonitor<RabbitMqOptions> optionsMonitor)
         {
-            var config = options.Value;
-            _queueName = config.QueueName;
-            _factory = new ConnectionFactory()
+            _optionsMonitor = optionsMonitor;
+
+            _optionsMonitor.OnChange(async config =>
             {
-                HostName = config.HostName,
-                UserName = config.UserName,
-                Password = config.Password
-            };
+                // Force a reconnect on the next publish
+                await _connectionSemaphore.WaitAsync();
+                try
+                {
+                    if (_channel != null) { try { await _channel.CloseAsync(); } catch { } _channel = null; }
+                    if (_connection != null) { try { await _connection.CloseAsync(); } catch { } _connection = null; }
+                }
+                finally
+                {
+                    _connectionSemaphore.Release();
+                }
+            });
         }
 
         /// <summary>
@@ -71,11 +77,19 @@ namespace DeskDuck.Features.Messaging
                     _connection = null;
                 }
 
-                _connection = await _factory.CreateConnectionAsync(cancellationToken);
+                var config = _optionsMonitor.CurrentValue;
+                var factory = new ConnectionFactory()
+                {
+                    HostName = config.HostName,
+                    UserName = config.UserName,
+                    Password = config.Password
+                };
+
+                _connection = await factory.CreateConnectionAsync(cancellationToken);
                 _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
                 await _channel.QueueDeclareAsync(
-                    queue: _queueName,
+                    queue: config.QueueName,
                     durable: true,
                     exclusive: false,
                     autoDelete: false,
@@ -105,7 +119,9 @@ namespace DeskDuck.Features.Messaging
                     throw new InvalidOperationException("Could not establish RabbitMQ channel.");
                 }
 
-                var messageObj = new NotificationMessage
+                var config = _optionsMonitor.CurrentValue;
+
+                var message = new NotificationMessage
                 {
                     Source = source,
                     Severity = severity,
@@ -113,12 +129,18 @@ namespace DeskDuck.Features.Messaging
                     Link = link
                 };
 
-                var json = JsonSerializer.Serialize(messageObj);
-                var body = Encoding.UTF8.GetBytes(json);
+                var body = JsonSerializer.SerializeToUtf8Bytes(message);
+                var properties = new BasicProperties
+                {
+                    Persistent = true,
+                    ContentType = MessagingConstants.ContentTypeJson
+                };
 
                 await _channel.BasicPublishAsync(
                     exchange: string.Empty,
-                    routingKey: _queueName,
+                    routingKey: config.QueueName,
+                    mandatory: true,
+                    basicProperties: properties,
                     body: body,
                     cancellationToken: cancellationToken);
 

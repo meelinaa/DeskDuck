@@ -7,15 +7,15 @@ namespace DeskDuck.Features.Messaging
     public class RabbitMqOptions
     {
         /// <summary>The hostname of the RabbitMQ server.</summary>
-        public string HostName { get; set; } = "localhost";
+        public string HostName { get; set; } = MessagingConstants.DefaultHostName;
 
         /// <summary>The username to authenticate with RabbitMQ.</summary>
-        public string UserName { get; set; } = "deskduck";
+        public string UserName { get; set; } = MessagingConstants.DefaultUserName;
 
         /// <summary>The password to authenticate with RabbitMQ.</summary>
-        public string Password { get; set; } = "deskduck";
+        public string Password { get; set; } = MessagingConstants.DefaultPassword;
 
         /// <summary>The name of the RabbitMQ queue to publish notifications to.</summary>
-        public string QueueName { get; set; } = "deskduck.notifications";
+        public string QueueName { get; set; } = MessagingConstants.DefaultQueueName;
     }
 }

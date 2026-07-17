@@ -18,12 +18,25 @@ namespace DeskDuck.Features.SystemMonitor
     /// Each warning is only published once per threshold breach; it resets after
     /// the metric recovers so the user is not spammed with repeated alerts.
     /// </summary>
-    public partial class SystemMonitorPublisherService(
-        IOptions<SystemMonitorOptions> options,
-        RabbitMqPublisher publisher) : BackgroundService
+    public partial class SystemMonitorPublisherService : BackgroundService
     {
-        private readonly IOptions<SystemMonitorOptions> _options = options;
-        private readonly RabbitMqPublisher _publisher = publisher;
+        private readonly IOptionsMonitor<SystemMonitorOptions> _optionsMonitor;
+        private readonly RabbitMqPublisher _publisher;
+        private CancellationTokenSource? _delayCts;
+
+        public SystemMonitorPublisherService(
+            IOptionsMonitor<SystemMonitorOptions> optionsMonitor,
+            RabbitMqPublisher publisher)
+        {
+            _optionsMonitor = optionsMonitor;
+            _publisher = publisher;
+
+            _optionsMonitor.OnChange(config =>
+            {
+                // Cancel the delay to immediately pick up new configuration
+                _delayCts?.Cancel();
+            });
+        }
 
         private bool _batteryWarningTriggered = false;
         private bool _cpuWarningTriggered = false;
@@ -40,7 +53,7 @@ namespace DeskDuck.Features.SystemMonitor
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                SystemMonitorOptions config = _options.Value;
+                SystemMonitorOptions config = _optionsMonitor.CurrentValue;
                 if (config.Enabled)
                 {
                     try
@@ -54,7 +67,21 @@ namespace DeskDuck.Features.SystemMonitor
                 }
 
                 int intervalSeconds = Math.Max(1, config.CheckIntervalSeconds);
-                await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), stoppingToken);
+                
+                try
+                {
+                    _delayCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                    await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), _delayCts.Token);
+                }
+                catch (TaskCanceledException)
+                {
+                    // If cancellation was triggered by options change, stoppingToken won't be cancelled.
+                }
+                finally
+                {
+                    _delayCts?.Dispose();
+                    _delayCts = null;
+                }
             }
         }
 
