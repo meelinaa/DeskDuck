@@ -8,7 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace DeskDuck.Publisher
+namespace DeskDuck.Features.Messaging
 {
     /// <summary>
     /// Singleton RabbitMQ publisher that sends <see cref="NotificationMessage"/> payloads

@@ -1,4 +1,4 @@
-namespace DeskDuck.Models
+namespace DeskDuck.Features.Messaging
 {
     /// <summary>
     /// Configuration options for the RabbitMQ broker connection.

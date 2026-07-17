@@ -1,9 +1,11 @@
-using DeskDuck.Consumer;
-using DeskDuck.Helper;
 using DeskDuck.Models;
-using DeskDuck.Publisher;
-using DeskDuck.Services;
 using DeskDuck.ViewModel;
+using DeskDuck.Features.Shell;
+using DeskDuck.Features.Chat;
+using DeskDuck.Features.Weather;
+using DeskDuck.Features.SystemMonitor;
+using DeskDuck.Features.Settings;
+using DeskDuck.Features.Messaging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -55,11 +57,7 @@ namespace DeskDuck
                     
                     services.AddSingleton<ISettingsRepository, SettingsRepository>();
                     services.AddTransient<SettingsViewModel>();
-
-                    // MainWindow acts as the INotificationDispatcher. We register it as a singleton.
                     services.AddSingleton<MainWindow>();
-                    services.AddSingleton<INotificationDispatcher>(sp => sp.GetRequiredService<MainWindow>());
-
                     services.AddHostedService<SystemMonitorPublisherService>();
                     services.AddHostedService<WeatherPublisherService>();
                     services.AddHostedService<RabbitMQBackgroundService>();

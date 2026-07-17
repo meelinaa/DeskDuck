@@ -1,13 +1,15 @@
+using CommunityToolkit.Mvvm.Messaging;
 using DeskDuck.Models;
-using DeskDuck.Services;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
+using DeskDuck.ViewModel;
 
-namespace DeskDuck.ViewModel
+namespace DeskDuck.Features.Chat
 {
     /// <summary>
     /// View model for the chat window. Maintains the message history, the list of

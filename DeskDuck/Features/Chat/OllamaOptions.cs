@@ -1,4 +1,4 @@
-namespace DeskDuck.Models
+namespace DeskDuck.Features.Chat
 {
     /// <summary>
     /// Configuration options for the local Ollama AI model.

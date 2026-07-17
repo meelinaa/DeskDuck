@@ -29,9 +29,9 @@ namespace DeskDuck.Manager
         private double _targetY;
         private double _dx;
         private double _dy;
-        private bool _isMoving;
-        private bool _isPaused;
-        private bool _isStopped;
+        
+        private readonly DuckStateMachine _stateMachine;
+        private System.Threading.CancellationTokenSource? _waitCts;
 
         /// <summary>Raised whenever the duck transitions to a new <see cref="DuckState"/>.</summary>
         public event Action<DuckState>? StateChanged;
@@ -45,56 +45,38 @@ namespace DeskDuck.Manager
         /// </summary>
         public void Pause()
         {
-            _isPaused = true;
-            _movementTimer.Stop();
+            _stateMachine.Fire(DuckTrigger.Hold);
         }
 
-        /// <summary>
-        /// Resumes movement from the current window position after a pause.
-        /// Syncs the internal coordinate tracker to the actual window position first
-        /// to avoid a position jump if the window was moved while paused (e.g. via drag).
-        /// Has no effect if the manager is in the fully stopped state.
-        /// </summary>
         public void Resume()
         {
-            if (_isStopped) return;
-            _isPaused = false;
             _currentX = _appWindow.Position.X;
             _currentY = _appWindow.Position.Y;
-            StartNextCycle();
+            _stateMachine.Fire(DuckTrigger.Release);
         }
 
-        /// <summary>
-        /// Fully stops movement and emits a <see cref="DuckState.Waiting"/> state.
-        /// Used while the chat or settings window is open so the duck stays in place.
-        /// </summary>
         public void Stop()
         {
-            _isStopped = true;
-            _isMoving = false;
-            _movementTimer.Stop();
-            StateChanged?.Invoke(DuckState.Waiting);
+            _stateMachine.Fire(DuckTrigger.Stop);
         }
 
-        /// <summary>
-        /// Starts (or restarts) autonomous movement from the current position.
-        /// </summary>
         public void Start()
         {
-            _isStopped = false;
-            Resume();
+            _currentX = _appWindow.Position.X;
+            _currentY = _appWindow.Position.Y;
+            
+            // if already in waiting/walking, Resume does nothing or is ignored.
+            // if Stopped, this transitions to Waiting.
+            _stateMachine.Fire(DuckTrigger.Resume);
+            
             PositionChanged?.Invoke((int)_currentX, (int)_currentY);
         }
 
-        /// <summary>
-        /// Initializes the movement manager with injected configuration, places the duck
-        /// at the center of the primary display, and sets up a ~60 FPS dispatcher timer
-        /// that drives each movement step.
-        /// </summary>
         public DuckMovementManager(AppWindow appWindow, DispatcherQueue dispatcherQueue, IOptions<DuckConfig> config)
         {
             _appWindow = appWindow;
             _config = config.Value;
+            _stateMachine = new DuckStateMachine();
 
             var display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
             _currentX = (display.OuterBounds.Width - _appWindow.Size.Width) / 2;
@@ -104,63 +86,83 @@ namespace DeskDuck.Manager
             _movementTimer = dispatcherQueue.CreateTimer();
             _movementTimer.Interval = TimeSpan.FromMilliseconds(16);
             _movementTimer.Tick += OnTimerTick;
+
+            _stateMachine.OnStateChanged += OnStateMachineTransitioned;
+            
+            // Trigger initial state
+            OnStateMachineTransitioned(_stateMachine.CurrentState);
         }
 
-        /// <summary>
-        /// Begins a new movement cycle: emits the Waiting state, waits for a random delay,
-        /// then picks a random target position within the display bounds and starts the
-        /// movement timer in the appropriate walking direction.
-        /// If the duck is already at the target (distance &lt;= 1), the cycle restarts immediately.
-        /// </summary>
-        private async void StartNextCycle()
+        private async void OnStateMachineTransitioned(DuckState state)
         {
-            if (_isStopped) return;
-            _isMoving = false;
-            _movementTimer.Stop();
+            StateChanged?.Invoke(state);
 
-            StateChanged?.Invoke(DuckState.Waiting);
-
-            int waitTimeMs = _random.Next(_config.MinWaitSeconds * 1000, (_config.MaxWaitSeconds + 1) * 1000);
-            await Task.Delay(waitTimeMs);
-
-            if (_isStopped) return;
-
-            var display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
-            int maxX = display.OuterBounds.Width - _appWindow.Size.Width;
-            int maxY = display.OuterBounds.Height - _appWindow.Size.Height;
-
-            _targetX = _random.Next(0, Math.Max(1, maxX));
-            _targetY = _random.Next(0, Math.Max(1, maxY));
-
-            DuckState moveState = _targetX < _currentX ? DuckState.WalkingLeft : DuckState.WalkingRight;
-
-            double distanceX = _targetX - _currentX;
-            double distanceY = _targetY - _currentY;
-            double distance = Math.Sqrt(distanceX * distanceX + distanceY * distanceY);
-
-            if (distance > 1)
+            if (state == DuckState.Waiting)
             {
-                _dx = (distanceX / distance) * _config.Speed;
-                _dy = (distanceY / distance) * _config.Speed;
-                _isMoving = true;
+                _movementTimer.Stop();
+                _waitCts?.Cancel();
+                _waitCts = new System.Threading.CancellationTokenSource();
+                var token = _waitCts.Token;
 
-                StateChanged?.Invoke(moveState);
+                int waitTimeMs = _random.Next(_config.MinWaitSeconds * 1000, (_config.MaxWaitSeconds + 1) * 1000);
+                
+                try
+                {
+                    await Task.Delay(waitTimeMs, token);
+                }
+                catch (TaskCanceledException)
+                {
+                    return;
+                }
+
+                if (_stateMachine.CurrentState != DuckState.Waiting) return;
+
+                var display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
+                int maxX = display.OuterBounds.Width - _appWindow.Size.Width;
+                int maxY = display.OuterBounds.Height - _appWindow.Size.Height;
+
+                _targetX = _random.Next(0, Math.Max(1, maxX));
+                _targetY = _random.Next(0, Math.Max(1, maxY));
+
+                double distanceX = _targetX - _currentX;
+                double distanceY = _targetY - _currentY;
+                double distance = Math.Sqrt(distanceX * distanceX + distanceY * distanceY);
+
+                if (distance > 1)
+                {
+                    _dx = (distanceX / distance) * _config.Speed;
+                    _dy = (distanceY / distance) * _config.Speed;
+                    
+                    if (_targetX < _currentX)
+                        _stateMachine.Fire(DuckTrigger.StartWalkingLeft);
+                    else
+                        _stateMachine.Fire(DuckTrigger.StartWalkingRight);
+                }
+                else
+                {
+                    // If target is same as current position, just wait again
+                    _stateMachine.Fire(DuckTrigger.StartWalkingLeft);
+                    _stateMachine.Fire(DuckTrigger.ReachDestination);
+                }
+            }
+            else if (state == DuckState.WalkingLeft || state == DuckState.WalkingRight)
+            {
                 _movementTimer.Start();
             }
-            else
+            else if (state == DuckState.Held || state == DuckState.Stopped)
             {
-                StartNextCycle();
+                _waitCts?.Cancel();
+                _movementTimer.Stop();
             }
         }
 
-        /// <summary>
-        /// Called at ~60 FPS by the dispatcher timer. Advances the duck's position by one step
-        /// along the direction vector. When the remaining distance is within one step, the duck
-        /// snaps to the target and begins the next wait-and-walk cycle.
-        /// </summary>
         private void OnTimerTick(DispatcherQueueTimer sender, object args)
         {
-            if (_isStopped || _isPaused || !_isMoving) return;
+            if (_stateMachine.CurrentState != DuckState.WalkingLeft && _stateMachine.CurrentState != DuckState.WalkingRight)
+            {
+                _movementTimer.Stop();
+                return;
+            }
 
             _currentX += _dx;
             _currentY += _dy;
@@ -175,7 +177,8 @@ namespace DeskDuck.Manager
                 _currentY = _targetY;
                 _appWindow.Move(new PointInt32((int)_currentX, (int)_currentY));
                 PositionChanged?.Invoke((int)_currentX, (int)_currentY);
-                StartNextCycle();
+                
+                _stateMachine.Fire(DuckTrigger.ReachDestination);
             }
             else
             {
@@ -184,10 +187,6 @@ namespace DeskDuck.Manager
             }
         }
 
-        /// <summary>
-        /// Instantly moves the duck to the specified screen coordinates and, if the manager
-        /// is active, restarts the random path selection from the new position.
-        /// </summary>
         public void TeleportTo(double x, double y)
         {
             _currentX = x;
@@ -195,9 +194,15 @@ namespace DeskDuck.Manager
             _appWindow.Move(new PointInt32((int)x, (int)y));
             PositionChanged?.Invoke((int)x, (int)y);
 
-            if (!_isStopped && !_isPaused)
+            if (_stateMachine.CurrentState == DuckState.WalkingLeft || _stateMachine.CurrentState == DuckState.WalkingRight)
             {
-                StartNextCycle();
+                _stateMachine.Fire(DuckTrigger.ReachDestination);
+            }
+            else if (_stateMachine.CurrentState == DuckState.Waiting)
+            {
+                // Just let it keep waiting, but force it to recalculate eventually
+                _stateMachine.Fire(DuckTrigger.StartWalkingLeft);
+                _stateMachine.Fire(DuckTrigger.ReachDestination);
             }
         }
     }

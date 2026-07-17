@@ -1,4 +1,4 @@
-namespace DeskDuck.Models
+namespace DeskDuck.Features.Weather
 {
     /// <summary>
     /// Configuration options for the weather publisher service.

@@ -9,5 +9,6 @@ public enum DuckState
     WalkingLeft,
     WalkingRight,
     Waiting,
-    Held
+    Held,
+    Stopped
 }

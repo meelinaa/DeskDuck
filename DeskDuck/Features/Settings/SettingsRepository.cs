@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 
-namespace DeskDuck.Helper
+namespace DeskDuck.Features.Settings
 {
     /// <summary>
     /// Provides methods for resolving the application configuration file path and loading/saving settings.

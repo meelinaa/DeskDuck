@@ -1,6 +1,7 @@
+using System.Threading.Tasks;
 using DeskDuck.Models;
 
-namespace DeskDuck.Helper
+namespace DeskDuck.Features.Settings
 {
     /// <summary>
     /// Abstraction for loading and saving application configuration.

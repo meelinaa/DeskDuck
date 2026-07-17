@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
-namespace DeskDuck.Models;
+namespace DeskDuck.Features.Chat;
 
 /// <summary>
 /// Represents a single message in the duck chat conversation.

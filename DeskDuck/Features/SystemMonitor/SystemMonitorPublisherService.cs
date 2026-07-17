@@ -1,6 +1,5 @@
 using DeskDuck.Helper;
 using DeskDuck.Models;
-using DeskDuck.Publisher;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System;
@@ -8,8 +7,9 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Devices.Power;
+using DeskDuck.Features.Messaging;
 
-namespace DeskDuck.Services
+namespace DeskDuck.Features.SystemMonitor
 {
     /// <summary>
     /// Hosted background service that periodically checks system health metrics

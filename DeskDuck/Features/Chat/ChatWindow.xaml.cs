@@ -1,4 +1,3 @@
-using DeskDuck.ViewModel;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
@@ -7,7 +6,7 @@ using System.Threading.Tasks;
 using Windows.Graphics;
 using Windows.System;
 
-namespace DeskDuck
+namespace DeskDuck.Features.Chat
 {
     /// <summary>
     /// Chat window that lets the user converse with the locally running Ollama AI model.

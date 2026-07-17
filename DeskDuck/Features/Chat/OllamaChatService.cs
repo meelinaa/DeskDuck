@@ -9,7 +9,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace DeskDuck.Services
+namespace DeskDuck.Features.Chat
 {
     /// <summary>
     /// Wraps the OllamaSharp client to provide AI chat functionality backed by a locally

@@ -1,6 +1,6 @@
 using DeskDuck.Models;
-using DeskDuck.Publisher;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
 using System.Diagnostics;
@@ -8,8 +8,9 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using DeskDuck.Features.Messaging;
 
-namespace DeskDuck.Services
+namespace DeskDuck.Features.Weather
 {
     /// <summary>
     /// Hosted background service that periodically fetches the current weather

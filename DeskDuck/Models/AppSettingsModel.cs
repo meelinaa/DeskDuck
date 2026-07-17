@@ -1,3 +1,7 @@
+using System.Collections.Generic;
+using DeskDuck.Features.Chat;
+using DeskDuck.Features.Messaging;
+
 namespace DeskDuck.Models;
 
 /// <summary>

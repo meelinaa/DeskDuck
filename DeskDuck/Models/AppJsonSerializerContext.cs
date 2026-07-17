@@ -1,5 +1,9 @@
 using System.Text.Json.Serialization;
 using DeskDuck.Models;
+using DeskDuck.Features.Chat;
+using DeskDuck.Features.Weather;
+using DeskDuck.Features.SystemMonitor;
+using DeskDuck.Features.Messaging;
 
 namespace DeskDuck
 {

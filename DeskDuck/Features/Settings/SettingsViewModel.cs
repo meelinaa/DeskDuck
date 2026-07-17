@@ -1,9 +1,14 @@
+using System;
 using DeskDuck.Helper;
 using DeskDuck.Models;
-using System;
 using System.Diagnostics;
+using DeskDuck.Features.Chat;
+using DeskDuck.Features.Weather;
+using DeskDuck.Features.SystemMonitor;
+using DeskDuck.Features.Messaging;
+using DeskDuck.ViewModel;
 
-namespace DeskDuck.ViewModel
+namespace DeskDuck.Features.Settings
 {
     /// <summary>
     /// View model for the settings window. Exposes bindable properties for all settings and

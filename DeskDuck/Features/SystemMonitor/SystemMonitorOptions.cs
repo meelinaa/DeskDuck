@@ -1,4 +1,4 @@
-namespace DeskDuck.Models
+namespace DeskDuck.Features.SystemMonitor
 {
     /// <summary>
     /// Configuration options for the system health monitor publisher service.

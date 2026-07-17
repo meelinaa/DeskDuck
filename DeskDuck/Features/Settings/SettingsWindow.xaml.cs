@@ -6,7 +6,7 @@ using System;
 using System.Diagnostics;
 using Windows.Graphics;
 
-namespace DeskDuck
+namespace DeskDuck.Features.Settings
 {
     /// <summary>
     /// Settings window that allows the user to configure all application options

@@ -246,37 +246,27 @@ Settings are stored in two locations:
 
 ## Project Structure
 
-```
+DeskDuck uses a **Vertical Slice Architecture** to group all related files (Views, ViewModels, Services, and Models) by feature rather than by technical layer. This maximizes cohesion, minimizes coupling, and makes adding or removing features significantly easier.
+
+```text
 DeskDuck/
-├── Consumer/
-│   └── RabbitMQBackgroundService.cs   # RabbitMQ consumer & UI dispatch
-├── Enums/
-│   └── DuckState.cs                   # Walking/Waiting/Held states
-├── Helper/
-│   ├── ConfigHelper.cs                # User config path resolution
-│   └── TransparentBackdrop.cs         # WinUI 3 transparent window backdrop
-├── Manager/
-│   └── DuckMovementManager.cs         # Autonomous movement engine (~60 FPS timer)
-├── Models/                            # Configuration & DTO models
-├── Publisher/
-│   └── RabbitMqPublisher.cs           # Shared AMQP publisher (singleton)
-├── Services/
-│   ├── IMessagePublisherService.cs    # Publisher service contract
-│   ├── OllamaChatService.cs           # Ollama API wrapper
-│   ├── SystemMonitorPublisherService.cs
-│   └── WeatherPublisherService.cs
-├── ViewModel/
-│   ├── MainViewModel.cs               # Main overlay bindings
-│   └── ChatViewModel.cs               # Chat window bindings
-├── Windows/
-│   ├── MainWindow.xaml/.cs            # Transparent overlay window
-│   ├── ChatWindow.xaml/.cs            # AI chat window
-│   └── SettingsWindow.xaml/.cs        # Settings window
-├── appsettings.json                   # Default configuration
-└── config.json                        # Duck movement & Ollama config
+├── Features/
+│   ├── Chat/            # AI chat window, ViewModel, and Ollama integration
+│   ├── Messaging/       # RabbitMQ publisher, background consumer, and config
+│   ├── Settings/        # Settings UI, ViewModel, and repository logic
+│   ├── Shell/           # Main transparent duck overlay and core bindings
+│   ├── SystemMonitor/   # System health metrics publisher (CPU, RAM, Battery)
+│   └── Weather/         # OpenWeatherMap publisher and options
+├── Enums/               # Duck states and triggers
+├── Helper/              # WinUI backdrop and window handling
+├── Manager/             # Duck movement engine and state machine
+├── Messages/            # IMessenger notification payloads
+├── Models/              # Cross-feature configuration models
+├── appsettings.json     # Default configuration
+└── config.json          # Duck movement & Ollama config
 
 DockerDuck/
-└── docker-compose.yml                 # RabbitMQ service definition
+└── docker-compose.yml   # RabbitMQ service definition
 ```
 
 ---

@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace DeskDuck.Publisher
+namespace DeskDuck.Features.Messaging
 {
     /// <summary>
     /// Abstraction for publishing notification messages to a message broker.

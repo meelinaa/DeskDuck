@@ -2,7 +2,7 @@ using DeskDuck.Models;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace DeskDuck.Services
+namespace DeskDuck.Features.Chat
 {
     /// <summary>
     /// Abstraction for an AI chat service backed by a locally running language model.

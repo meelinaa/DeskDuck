@@ -1,3 +1,6 @@
+using DeskDuck.Features.Weather;
+using DeskDuck.Features.SystemMonitor;
+
 namespace DeskDuck.Models;
 
 /// <summary>

@@ -1,3 +1,5 @@
+using CommunityToolkit.Mvvm.Messaging;
+using DeskDuck.Messages;
 using DeskDuck.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -10,20 +12,17 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace DeskDuck.Consumer
+namespace DeskDuck.Features.Messaging
 {
     /// <summary>
     /// Background service that maintains a persistent RabbitMQ consumer connection and
-    /// dispatches incoming notification messages to the UI via <see cref="INotificationDispatcher"/>.
+    /// dispatches incoming notification messages to the UI via IMessenger.
     /// Automatically reconnects on connection failures with a 5-second retry delay.
-    /// UI thread marshaling is handled by the <see cref="INotificationDispatcher"/> implementation.
     /// </summary>
     public class RabbitMQBackgroundService(
-        IOptions<RabbitMqOptions> options,
-        INotificationDispatcher dispatcher) : BackgroundService
+        IOptions<RabbitMqOptions> options) : BackgroundService
     {
         private readonly RabbitMqOptions _rabbitMqOptions = options.Value;
-        private readonly INotificationDispatcher _dispatcher = dispatcher;
         private IConnection? _connection;
         private IChannel? _channel;
         private readonly string _queue = options.Value.QueueName;
@@ -127,11 +126,11 @@ namespace DeskDuck.Consumer
 
                             if (notification != null)
                             {
-                                _dispatcher.Show(notification);
+                                WeakReferenceMessenger.Default.Send(new ShowNotificationMessage(notification));
 
                                 await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
 
-                                _dispatcher.Hide();
+                                WeakReferenceMessenger.Default.Send(new HideNotificationMessage());
                             }
                         }
                         catch (Exception ex)

@@ -1,14 +1,19 @@
+using CommunityToolkit.Mvvm.Messaging;
+using DeskDuck.Messages;
+using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using DeskDuck.ViewModel;
 
-namespace DeskDuck.ViewModel
+namespace DeskDuck.Features.Shell
 {
     /// <summary>
     /// View model for the main overlay window. Exposes bindable properties for the
     /// duck animation URI, notification content, notification visibility, coordinate
     /// display, and the title bar visibility of notifications.
     /// </summary>
-    public partial class MainViewModel : ViewModelBase
+    public partial class MainViewModel : ViewModelBase, IRecipient<ShowNotificationMessage>, IRecipient<HideNotificationMessage>
     {
         private string _duckImageUri = "ms-appx:///Assets/Duck/duck-sitting.gif";
         private string _notificationTitle = string.Empty;
@@ -16,6 +21,41 @@ namespace DeskDuck.ViewModel
         private Visibility _notificationVisibility = Visibility.Collapsed;
         private Visibility _titleVisibility = Visibility.Collapsed;
         private Brush _notificationTextBrush = new SolidColorBrush(Microsoft.UI.Colors.Black);
+        private readonly DispatcherQueue _dispatcherQueue;
+
+        public MainViewModel(DispatcherQueue dispatcherQueue)
+        {
+            _dispatcherQueue = dispatcherQueue;
+            WeakReferenceMessenger.Default.RegisterAll(this);
+        }
+
+        public void Receive(ShowNotificationMessage message)
+        {
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                NotificationTitle = message.Notification.Title ?? string.Empty;
+                NotificationMessage = message.Notification.Message;
+                
+                // Map severity to colors
+                var severity = message.Notification.Severity?.ToLowerInvariant() ?? "";
+                NotificationTextBrush = severity switch
+                {
+                    "warning" => new SolidColorBrush(Colors.DarkRed),
+                    "info" => new SolidColorBrush(Colors.DarkBlue),
+                    _ => new SolidColorBrush(Colors.Black)
+                };
+
+                NotificationVisibility = Visibility.Visible;
+            });
+        }
+
+        public void Receive(HideNotificationMessage message)
+        {
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                NotificationVisibility = Visibility.Collapsed;
+            });
+        }
 
         /// <summary>
         /// ms-appx URI of the GIF asset currently shown for the duck.

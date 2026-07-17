@@ -1,4 +1,3 @@
-using DeskDuck.Consumer;
 using DeskDuck.Enums;
 using DeskDuck.Helper;
 using DeskDuck.Manager;
@@ -18,14 +17,17 @@ using System.Diagnostics;
 using Windows.Graphics;
 using Windows.UI;
 using WinRT.Interop;
+using DeskDuck.Features.Chat;
+using DeskDuck.Features.Settings;
+using DeskDuck.Features.Messaging;
 
-namespace DeskDuck
+namespace DeskDuck.Features.Shell
 {
     /// <summary>
     /// Transparent overlay window that displays a walking duck on the desktop.
     /// The window is click-through so you can interact with apps underneath.
     /// </summary>
-    public sealed partial class MainWindow : Window, INotificationDispatcher
+    public sealed partial class MainWindow : Window
     {
         private Win32WindowHelper.SUBCLASSPROC? _subclassProc;
 
@@ -33,7 +35,7 @@ namespace DeskDuck
         private readonly ISettingsRepository _settingsRepository;
         private readonly IServiceProvider _serviceProvider;
 
-        public MainViewModel MainViewModel { get; } = new();
+        public MainViewModel MainViewModel { get; }
 
         /// <summary>
         /// Initializes the main window, configures the overlay, loads settings,
@@ -49,6 +51,9 @@ namespace DeskDuck
             _settingsRepository = settingsRepository;
 
             InitializeComponent();
+            
+            MainViewModel = new MainViewModel(DispatcherQueue);
+            
             ConfigureOverlayWindow();
 
             MainViewModel.CoordinatesVisibility = generalConfig.CurrentValue.ShowCoordinates ? Visibility.Visible : Visibility.Collapsed;
@@ -104,51 +109,6 @@ namespace DeskDuck
 
 
 
-        }
-
-        /// <summary>
-        /// Displays an incoming notification by setting its title, message, and a color-coded
-        /// text brush based on severity ("warning" → red, "info" or weather source → blue,
-        /// everything else → black).
-        /// Implements <see cref="INotificationDispatcher.Show"/>.
-        /// </summary>
-        public void Show(NotificationMessage message)
-        {
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                MainViewModel.NotificationTitle = message.Title ?? string.Empty;
-                MainViewModel.NotificationMessage = message.Message;
-
-                string severity = message.Severity?.ToLowerInvariant() ?? string.Empty;
-                string source = message.Source?.ToLowerInvariant() ?? string.Empty;
-
-                if (severity == "warning")
-                {
-                    MainViewModel.NotificationTextBrush = new SolidColorBrush(Color.FromArgb(255, 209, 52, 56));
-                }
-                else if (severity == "info" || source == "weather")
-                {
-                    MainViewModel.NotificationTextBrush = new SolidColorBrush(Color.FromArgb(255, 0, 120, 212));
-                }
-                else
-                {
-                    MainViewModel.NotificationTextBrush = new SolidColorBrush(Colors.Black);
-                }
-
-                MainViewModel.NotificationVisibility = Visibility.Visible;
-            });
-        }
-
-        /// <summary>
-        /// Hides the notification overlay by collapsing its visibility.
-        /// Implements <see cref="INotificationDispatcher.Hide"/>.
-        /// </summary>
-        public void Hide()
-        {
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                MainViewModel.NotificationVisibility = Visibility.Collapsed;
-            });
         }
 
         private bool _isDragging = false;
