@@ -119,7 +119,11 @@ namespace DeskDuck.Features.Messaging
             {
                 await EnsureConnectedAsync(cancellationToken);
 
-                if (_channel == null)
+                // Capture the channel in a local variable to prevent race conditions
+                // if IOptionsMonitor.OnChange fires and sets _channel to null concurrently.
+                var channel = _channel;
+
+                if (channel == null)
                 {
                     throw new InvalidOperationException("Could not establish RabbitMQ channel.");
                 }
@@ -141,7 +145,7 @@ namespace DeskDuck.Features.Messaging
                     ContentType = MessagingConstants.ContentTypeJson
                 };
 
-                await _channel.BasicPublishAsync(
+                await channel.BasicPublishAsync(
                     exchange: string.Empty,
                     routingKey: config.QueueName,
                     mandatory: true,

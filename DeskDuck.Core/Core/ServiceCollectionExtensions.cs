@@ -36,7 +36,6 @@ namespace DeskDuck.Core
 
             // Shell
             services.AddSingleton<IWindowService, WindowService>();
-            services.AddSingleton<MainWindow>();
 
             // SystemMonitor
             services.AddSingleton<ISystemMetricsProvider, SystemMetricsProvider>();
