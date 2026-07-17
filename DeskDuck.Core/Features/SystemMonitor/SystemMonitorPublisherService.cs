@@ -20,14 +20,14 @@ namespace DeskDuck.Features.SystemMonitor
     public partial class SystemMonitorPublisherService : BackgroundService
     {
         private readonly IOptionsMonitor<SystemMonitorOptions> _optionsMonitor;
-        private readonly RabbitMqPublisher _publisher;
+        private readonly IRabbitMqPublisher _publisher;
         private readonly ILogger<SystemMonitorPublisherService> _logger;
         private readonly ISystemMetricsProvider _metricsProvider;
         private CancellationTokenSource? _delayCts;
 
         public SystemMonitorPublisherService(
             IOptionsMonitor<SystemMonitorOptions> optionsMonitor,
-            RabbitMqPublisher publisher,
+            IRabbitMqPublisher publisher,
             ILogger<SystemMonitorPublisherService> logger,
             ISystemMetricsProvider metricsProvider)
         {
@@ -103,7 +103,8 @@ namespace DeskDuck.Features.SystemMonitor
                 double? batteryPercent = _metricsProvider.GetBatteryPercent();
                 if (batteryPercent.HasValue)
                 {
-                    if (batteryPercent.Value < config.BatteryWarningThresholdPercent)
+                    int clampedBatteryThreshold = Math.Clamp(config.BatteryWarningThresholdPercent, 0, 100);
+                    if (batteryPercent.Value < clampedBatteryThreshold)
                     {
                         if (!_batteryWarningTriggered)
                         {
@@ -111,7 +112,7 @@ namespace DeskDuck.Features.SystemMonitor
                             await _publisher.PublishAsync(
                                 source: "SystemMonitor",
                                 severity: "Warning",
-                                text: $"Akkustand ist niedrig: {batteryPercent.Value:F1}% (Schwellenwert: {config.BatteryWarningThresholdPercent}%)",
+                                text: $"Akkustand ist niedrig: {batteryPercent.Value:F1}% (Schwellenwert: {clampedBatteryThreshold}%)",
                                 cancellationToken: cancellationToken
                             );
                         }
@@ -128,7 +129,8 @@ namespace DeskDuck.Features.SystemMonitor
                 double? cpuUsage = await _metricsProvider.GetCpuUsageAsync(cancellationToken);
                 if (cpuUsage.HasValue)
                 {
-                    if (cpuUsage.Value > config.CpuWarningThresholdPercent)
+                    int clampedCpuThreshold = Math.Clamp(config.CpuWarningThresholdPercent, 0, 100);
+                    if (cpuUsage.Value > clampedCpuThreshold)
                     {
                         if (!_cpuWarningTriggered)
                         {
@@ -136,7 +138,7 @@ namespace DeskDuck.Features.SystemMonitor
                             await _publisher.PublishAsync(
                                 source: "SystemMonitor",
                                 severity: "Warning",
-                                text: $"Hohe CPU-Auslastung: {cpuUsage.Value:F1}% (Schwellenwert: {config.CpuWarningThresholdPercent}%)",
+                                text: $"Hohe CPU-Auslastung: {cpuUsage.Value:F1}% (Schwellenwert: {clampedCpuThreshold}%)",
                                 cancellationToken: cancellationToken
                             );
                         }
@@ -153,7 +155,8 @@ namespace DeskDuck.Features.SystemMonitor
                 double? ramUsage = _metricsProvider.GetRamUsage();
                 if (ramUsage.HasValue)
                 {
-                    if (ramUsage.Value > config.RamWarningThresholdPercent)
+                    int clampedRamThreshold = Math.Clamp(config.RamWarningThresholdPercent, 0, 100);
+                    if (ramUsage.Value > clampedRamThreshold)
                     {
                         if (!_ramWarningTriggered)
                         {
@@ -161,7 +164,7 @@ namespace DeskDuck.Features.SystemMonitor
                             await _publisher.PublishAsync(
                                 source: "SystemMonitor",
                                 severity: "Warning",
-                                text: $"Hohe RAM-Auslastung: {ramUsage.Value:F1}% (Schwellenwert: {config.RamWarningThresholdPercent}%)",
+                                text: $"Hohe RAM-Auslastung: {ramUsage.Value:F1}% (Schwellenwert: {clampedRamThreshold}%)",
                                 cancellationToken: cancellationToken
                             );
                         }

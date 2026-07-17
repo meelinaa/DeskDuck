@@ -83,6 +83,12 @@ namespace DeskDuck.Features.Messaging
                 }
 
                 var config = _optionsMonitor.CurrentValue;
+
+                if (string.IsNullOrWhiteSpace(config.HostName) || string.IsNullOrWhiteSpace(config.QueueName))
+                {
+                    throw new InvalidOperationException("RabbitMQ HostName or QueueName is missing in configuration.");
+                }
+
                 var factory = new ConnectionFactory()
                 {
                     HostName = config.HostName,

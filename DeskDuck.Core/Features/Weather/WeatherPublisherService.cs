@@ -21,14 +21,14 @@ namespace DeskDuck.Features.Weather
     public partial class WeatherPublisherService : BackgroundService
     {
         private readonly IOptionsMonitor<WeatherPublisherOptions> _optionsMonitor;
-        private readonly RabbitMqPublisher _publisher;
+        private readonly IRabbitMqPublisher _publisher;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<WeatherPublisherService> _logger;
         private CancellationTokenSource? _delayCts;
 
         public WeatherPublisherService(
             IOptionsMonitor<WeatherPublisherOptions> optionsMonitor,
-            RabbitMqPublisher publisher,
+            IRabbitMqPublisher publisher,
             IHttpClientFactory httpClientFactory,
             ILogger<WeatherPublisherService> logger)
         {
@@ -118,6 +118,10 @@ namespace DeskDuck.Features.Weather
                 if (root.TryGetProperty("main", out JsonElement mainProp) && mainProp.TryGetProperty("temp", out JsonElement tempProp))
                 {
                     temp = tempProp.GetDouble();
+                }
+                else
+                {
+                    throw new InvalidOperationException("Invalid weather data received: missing 'main.temp'.");
                 }
 
                 string description = "Unbekannt";

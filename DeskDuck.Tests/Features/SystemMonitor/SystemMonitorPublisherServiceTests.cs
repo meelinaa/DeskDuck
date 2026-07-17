@@ -1,0 +1,149 @@
+using DeskDuck.Features.Messaging;
+using DeskDuck.Features.SystemMonitor;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Moq;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+using Xunit;
+
+namespace DeskDuck.Tests.Features.SystemMonitor
+{
+    public class SystemMonitorPublisherServiceTests
+    {
+        private readonly Mock<IOptionsMonitor<SystemMonitorOptions>> _mockOptions;
+        private readonly Mock<IRabbitMqPublisher> _mockPublisher;
+        private readonly Mock<ILogger<SystemMonitorPublisherService>> _mockLogger;
+        private readonly Mock<ISystemMetricsProvider> _mockMetrics;
+
+        public SystemMonitorPublisherServiceTests()
+        {
+            _mockOptions = new Mock<IOptionsMonitor<SystemMonitorOptions>>();
+            _mockPublisher = new Mock<IRabbitMqPublisher>();
+            _mockLogger = new Mock<ILogger<SystemMonitorPublisherService>>();
+            _mockMetrics = new Mock<ISystemMetricsProvider>();
+
+            var config = new SystemMonitorOptions
+            {
+                Enabled = true,
+                RamWarningEnabled = true,
+                RamWarningThresholdPercent = 80,
+                CpuWarningEnabled = true,
+                CpuWarningThresholdPercent = 90,
+                BatteryWarningEnabled = true,
+                BatteryWarningThresholdPercent = 20
+            };
+            _mockOptions.Setup(o => o.CurrentValue).Returns(config);
+        }
+
+        private async Task InvokeCheckSystemMetricsAsync(SystemMonitorPublisherService service, SystemMonitorOptions config)
+        {
+            var method = typeof(SystemMonitorPublisherService).GetMethod("CheckSystemMetricsAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (method != null)
+            {
+                var task = (Task)method.Invoke(service, new object[] { config, CancellationToken.None })!;
+                await task;
+            }
+        }
+
+        [Fact]
+        public async Task CheckSystemMetrics_WhenRamExceedsThreshold_PublishesWarning()
+        {
+            // Arrange
+            _mockMetrics.Setup(m => m.GetRamUsage()).Returns(85.0); // Exceeds 80
+            _mockMetrics.Setup(m => m.GetCpuUsageAsync(It.IsAny<CancellationToken>())).ReturnsAsync(50.0);
+            _mockMetrics.Setup(m => m.GetBatteryPercent()).Returns(100.0);
+
+            var service = new SystemMonitorPublisherService(
+                _mockOptions.Object,
+                _mockPublisher.Object,
+                _mockLogger.Object,
+                _mockMetrics.Object);
+
+            // Act
+            await InvokeCheckSystemMetricsAsync(service, _mockOptions.Object.CurrentValue);
+
+            // Assert
+            _mockPublisher.Verify(p => p.PublishAsync(
+                "SystemMonitor",
+                "Warning",
+                It.Is<string>(s => s.Contains("Hohe RAM-Auslastung")),
+                null,
+                It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task CheckSystemMetrics_WhenMetricsAreNormal_DoesNotPublish()
+        {
+            // Arrange
+            _mockMetrics.Setup(m => m.GetRamUsage()).Returns(50.0); // Under 80
+            _mockMetrics.Setup(m => m.GetCpuUsageAsync(It.IsAny<CancellationToken>())).ReturnsAsync(50.0); // Under 90
+            _mockMetrics.Setup(m => m.GetBatteryPercent()).Returns(50.0); // Above 20
+
+            var service = new SystemMonitorPublisherService(
+                _mockOptions.Object,
+                _mockPublisher.Object,
+                _mockLogger.Object,
+                _mockMetrics.Object);
+
+            // Act
+            await InvokeCheckSystemMetricsAsync(service, _mockOptions.Object.CurrentValue);
+
+            // Assert
+            _mockPublisher.Verify(p => p.PublishAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task CheckSystemMetrics_WithInvalidThreshold_ClampsToValidRange()
+        {
+            // Arrange
+            var invalidConfig = new SystemMonitorOptions
+            {
+                Enabled = true,
+                RamWarningEnabled = true,
+                RamWarningThresholdPercent = 150, // Invalid, should be clamped to 100
+                CpuWarningEnabled = true,
+                CpuWarningThresholdPercent = -10, // Invalid, should be clamped to 0
+                BatteryWarningEnabled = false
+            };
+            
+            // If RAM threshold is clamped to 100, then Ram=90 should NOT trigger a warning
+            _mockMetrics.Setup(m => m.GetRamUsage()).Returns(90.0);
+            
+            // If CPU threshold is clamped to 0, then Cpu=10 should trigger a warning
+            _mockMetrics.Setup(m => m.GetCpuUsageAsync(It.IsAny<CancellationToken>())).ReturnsAsync(10.0);
+
+            var service = new SystemMonitorPublisherService(
+                _mockOptions.Object,
+                _mockPublisher.Object,
+                _mockLogger.Object,
+                _mockMetrics.Object);
+
+            // Act
+            await InvokeCheckSystemMetricsAsync(service, invalidConfig);
+
+            // Assert
+            // RAM = 90 < 100, so NO warning for RAM
+            _mockPublisher.Verify(p => p.PublishAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.Is<string>(s => s.Contains("RAM-Auslastung")),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()), Times.Never);
+
+            // CPU = 10 > 0, so YES warning for CPU
+            _mockPublisher.Verify(p => p.PublishAsync(
+                "SystemMonitor",
+                "Warning",
+                It.Is<string>(s => s.Contains("Hohe CPU-Auslastung")),
+                null,
+                It.IsAny<CancellationToken>()), Times.Once);
+        }
+    }
+}
