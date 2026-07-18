@@ -5,6 +5,8 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using DeskDuck.ViewModel;
+using DeskDuck.Enums;
+using CommunityToolkit.Mvvm.Input;
 
 namespace DeskDuck.Features.Shell
 {
@@ -23,12 +25,55 @@ namespace DeskDuck.Features.Shell
         private Brush _notificationTextBrush = new SolidColorBrush(Microsoft.UI.Colors.Black);
         private readonly DispatcherQueue _dispatcherQueue;
         private readonly IMessenger _messenger;
+        private readonly IDuckWindowManager _windowManager;
 
-        public MainViewModel(DispatcherQueue dispatcherQueue, IMessenger messenger)
+        public MainViewModel(DispatcherQueue dispatcherQueue, IMessenger messenger, IDuckWindowManager windowManager)
         {
             _dispatcherQueue = dispatcherQueue;
             _messenger = messenger;
+            _windowManager = windowManager;
             _messenger.RegisterAll(this);
+        }
+
+        [RelayCommand]
+        private void OpenChat()
+        {
+            _windowManager.OpenChatWindow();
+        }
+
+        [RelayCommand]
+        private void OpenSettings()
+        {
+            _windowManager.OpenSettingsWindow();
+        }
+
+        [RelayCommand]
+        private void Exit()
+        {
+            _windowManager.CloseAll();
+            Application.Current.Exit();
+        }
+
+        public void OnDuckStateChanged(DuckState state)
+        {
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                DuckImageUri = state switch
+                {
+                    DuckState.WalkingLeft => "ms-appx:///Assets/Duck/duck-walking-to-left.gif",
+                    DuckState.WalkingRight => "ms-appx:///Assets/Duck/duck-walking-to-right.gif",
+                    DuckState.Held => "ms-appx:///Assets/Duck/pokeball.gif",
+                    _ => "ms-appx:///Assets/Duck/duck-sitting.gif"
+                };
+            });
+        }
+
+        public void OnDuckPositionChanged(int x, int y)
+        {
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                CoordinatesText = $"X: {x}, Y: {y}";
+            });
         }
 
         public void Receive(ShowNotificationMessage message)

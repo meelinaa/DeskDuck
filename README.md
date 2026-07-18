@@ -148,6 +148,7 @@ The publisher services and the consumer run within the **same process** but are 
 | Win32 Interop | P/Invoke (`user32.dll`, `kernel32.dll`, `comctl32.dll`) |
 | Serialization | `System.Text.Json` (source-generated, AOT-safe) |
 | Containerisation | Docker Compose |
+| Testing | xUnit, Moq, coverlet |
 
 ---
 
@@ -223,6 +224,7 @@ Settings are stored in two locations:
       "Enabled": true,
       "IntervalMinutes": 30,
       "ApiKey": "<your-openweathermap-api-key>",
+      "DefaultCity": "Berlin",
       "OverrideCity": ""
     }
   }
@@ -250,23 +252,27 @@ DeskDuck uses a **Vertical Slice Architecture** to group all related files (View
 
 ```text
 DeskDuck/
-├── Features/
-│   ├── Chat/            # AI chat window, ViewModel, and Ollama integration
-│   ├── Messaging/       # RabbitMQ publisher, background consumer, and config
-│   ├── Settings/        # Settings UI, ViewModel, and repository logic
-│   ├── Shell/           # Main transparent duck overlay and core bindings
-│   ├── SystemMonitor/   # System health metrics publisher (CPU, RAM, Battery)
-│   └── Weather/         # OpenWeatherMap publisher and options
-├── Enums/               # Duck states and triggers
-├── Helper/              # WinUI backdrop and window handling
-├── Manager/             # Duck movement engine and state machine
-├── Messages/            # IMessenger notification payloads
-├── Models/              # Cross-feature configuration models
-├── appsettings.json     # Default configuration
-└── config.json          # Duck movement & Ollama config
-
-DockerDuck/
-└── docker-compose.yml   # RabbitMQ service definition
+├── DeskDuck/              # WinUI 3 App (Views, XAML, Window lifecycle)
+│   ├── Features/          # UI-specific feature slices (ChatWindow, SettingsWindow)
+│   ├── Assets/            # GIFs, Icons, Images
+│   └── App.xaml           # Application entry point
+│
+├── DeskDuck.Core/         # Business logic (No WinUI dependencies)
+│   ├── Features/          # Core feature slices
+│   │   ├── Chat/          # Ollama integration, ChatMessage models
+│   │   ├── Messaging/     # RabbitMQ publisher & background consumer
+│   │   ├── Settings/      # I/O logic for appsettings.json
+│   │   ├── Shell/         # MainViewModel (IMessenger bindings)
+│   │   ├── SystemMonitor/ # Metrics publisher (CPU, RAM, Battery)
+│   │   └── Weather/       # OpenWeatherMap publisher and options
+│   ├── Manager/           # DuckMovementManager & DuckStateMachine
+│   └── Core/              # ServiceCollection DI registrations
+│
+├── DeskDuck.Tests/        # Unit Tests (xUnit, Moq)
+│   └── Features/          # Mirrors DeskDuck.Core structure
+│
+└── DockerDuck/
+    └── docker-compose.yml # RabbitMQ service definition
 ```
 
 ---

@@ -53,6 +53,7 @@ namespace DeskDuck
                 .ConfigureServices((context, services) =>
                 {
                     services.AddDeskDuckFeatures(context.Configuration);
+                    services.AddSingleton<IDuckWindowManager, DuckWindowManager>();
                     services.AddSingleton<MainWindow>();
                 })
                 .Build();

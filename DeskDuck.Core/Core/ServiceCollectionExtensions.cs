@@ -5,6 +5,7 @@ using DeskDuck.Features.SystemMonitor;
 using DeskDuck.Features.Settings;
 using DeskDuck.Features.Messaging;
 using DeskDuck.Features.Shell;
+using DeskDuck.Manager;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,6 +41,7 @@ namespace DeskDuck.Core
 
             // Shell
             services.AddSingleton<IWindowService, WindowService>();
+            services.AddSingleton<IDuckMovementManager, DuckMovementManager>();
 
             // SystemMonitor
             services.AddSingleton<ISystemMetricsProvider, SystemMetricsProvider>();

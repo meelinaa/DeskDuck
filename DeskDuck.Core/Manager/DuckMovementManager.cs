@@ -17,10 +17,10 @@ namespace DeskDuck.Manager
     /// Movement can be paused (e.g. during drag), stopped (e.g. while a modal window is open),
     /// or teleported to an explicit position via the hotkey.
     /// </summary>
-    public class DuckMovementManager
+    public class DuckMovementManager : IDuckMovementManager
     {
-        private readonly AppWindow _appWindow;
-        private readonly DispatcherQueueTimer _movementTimer;
+        private AppWindow? _appWindow;
+        private DispatcherQueueTimer? _movementTimer;
         private readonly Random _random = new();
         private readonly DuckConfig _config;
         private readonly ILogger<DuckMovementManager> _logger;
@@ -52,6 +52,8 @@ namespace DeskDuck.Manager
 
         public void Resume()
         {
+            if (_appWindow == null) return;
+            
             _currentX = _appWindow.Position.X;
             _currentY = _appWindow.Position.Y;
             _stateMachine.Fire(DuckTrigger.Release);
@@ -64,6 +66,8 @@ namespace DeskDuck.Manager
 
         public void Start()
         {
+            if (_appWindow == null) return;
+            
             _currentX = _appWindow.Position.X;
             _currentY = _appWindow.Position.Y;
             
@@ -74,12 +78,17 @@ namespace DeskDuck.Manager
             PositionChanged?.Invoke((int)_currentX, (int)_currentY);
         }
 
-        public DuckMovementManager(AppWindow appWindow, DispatcherQueue dispatcherQueue, IOptions<DuckConfig> config, ILogger<DuckMovementManager> logger)
+        public DuckMovementManager(IOptions<DuckConfig> config, ILogger<DuckMovementManager> logger)
         {
-            _appWindow = appWindow;
             _config = config.Value;
             _logger = logger;
             _stateMachine = new DuckStateMachine();
+            _stateMachine.OnStateChanged += OnStateMachineTransitioned;
+        }
+
+        public void Initialize(AppWindow appWindow, DispatcherQueue dispatcherQueue)
+        {
+            _appWindow = appWindow;
 
             var display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
             _currentX = (display.OuterBounds.Width - _appWindow.Size.Width) / 2;
@@ -89,8 +98,6 @@ namespace DeskDuck.Manager
             _movementTimer = dispatcherQueue.CreateTimer();
             _movementTimer.Interval = TimeSpan.FromMilliseconds(16);
             _movementTimer.Tick += OnTimerTick;
-
-            _stateMachine.OnStateChanged += OnStateMachineTransitioned;
             
             // Trigger initial state
             OnStateMachineTransitioned(_stateMachine.CurrentState);
@@ -104,7 +111,7 @@ namespace DeskDuck.Manager
 
                 if (state == DuckState.Waiting)
                 {
-                    _movementTimer.Stop();
+                    _movementTimer?.Stop();
                     _waitCts?.Cancel();
                     _waitCts = new System.Threading.CancellationTokenSource();
                     var token = _waitCts.Token;
@@ -120,7 +127,7 @@ namespace DeskDuck.Manager
                         return;
                     }
 
-                    if (_stateMachine.CurrentState != DuckState.Waiting) return;
+                    if (_stateMachine.CurrentState != DuckState.Waiting || _appWindow == null) return;
 
                     var display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
                     int maxX = display.OuterBounds.Width - _appWindow.Size.Width;
@@ -152,12 +159,12 @@ namespace DeskDuck.Manager
                 }
                 else if (state == DuckState.WalkingLeft || state == DuckState.WalkingRight)
                 {
-                    _movementTimer.Start();
+                    _movementTimer?.Start();
                 }
                 else if (state == DuckState.Held || state == DuckState.Stopped)
                 {
                     _waitCts?.Cancel();
-                    _movementTimer.Stop();
+                    _movementTimer?.Stop();
                 }
             }
             catch (Exception ex)
@@ -170,7 +177,7 @@ namespace DeskDuck.Manager
         {
             if (_stateMachine.CurrentState != DuckState.WalkingLeft && _stateMachine.CurrentState != DuckState.WalkingRight)
             {
-                _movementTimer.Stop();
+                _movementTimer?.Stop();
                 return;
             }
 
@@ -185,14 +192,14 @@ namespace DeskDuck.Manager
             {
                 _currentX = _targetX;
                 _currentY = _targetY;
-                _appWindow.Move(new PointInt32((int)_currentX, (int)_currentY));
+                _appWindow?.Move(new PointInt32((int)_currentX, (int)_currentY));
                 PositionChanged?.Invoke((int)_currentX, (int)_currentY);
                 
                 _stateMachine.Fire(DuckTrigger.ReachDestination);
             }
             else
             {
-                _appWindow.Move(new PointInt32((int)_currentX, (int)_currentY));
+                _appWindow?.Move(new PointInt32((int)_currentX, (int)_currentY));
                 PositionChanged?.Invoke((int)_currentX, (int)_currentY);
             }
         }
@@ -201,7 +208,7 @@ namespace DeskDuck.Manager
         {
             _currentX = x;
             _currentY = y;
-            _appWindow.Move(new PointInt32((int)x, (int)y));
+            _appWindow?.Move(new PointInt32((int)x, (int)y));
             PositionChanged?.Invoke((int)x, (int)y);
 
             if (_stateMachine.CurrentState == DuckState.WalkingLeft || _stateMachine.CurrentState == DuckState.WalkingRight)

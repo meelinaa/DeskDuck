@@ -29,9 +29,7 @@
         <Border Grid.Row="0" BorderBrush="#22888888" BorderThickness="0,0,0,1" Padding="16,12">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <Ellipse Width="36" Height="36" Fill="#0078D4">
-                        <!-- Icon or placeholder representing the Duck -->
-                    </Ellipse>
+                    <Ellipse Width="36" Height="36" Fill="#0078D4"/> <!--Avatar-->
                     <StackPanel>
                         <TextBlock Text="DeskDuck AI" FontWeight="Bold" FontSize="14" Foreground="{ThemeResource TextControlForeground}"/>
                         <TextBlock Text="Online" FontSize="11" Foreground="Green"/>

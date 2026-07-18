@@ -49,15 +49,13 @@
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Source="{Binding DuckImageUri, Mode=OneWay}"
-                PointerPressed="DuckImage_PointerPressed"
-                PointerMoved="DuckImage_PointerMoved"
-                PointerReleased="DuckImage_PointerReleased">
+                local:DragBehavior.IsDraggable="True">
                 <FlyoutBase.AttachedFlyout>
-                    <MenuFlyout x:Name="DuckContextMenu" Closed="DuckContextMenu_Closed">
-                        <MenuFlyoutItem Text="Chat mit KI" Click="ChatWithAI_Click" />
-                        <MenuFlyoutItem Text="Einstellungen" Click="Settings_Click" />
+                    <MenuFlyout x:Name="DuckContextMenu">
+                        <MenuFlyoutItem Text="Chat mit KI" Command="{Binding OpenChatCommand}" />
+                        <MenuFlyoutItem Text="Einstellungen" Command="{Binding OpenSettingsCommand}" />
                         <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="Beenden" Click="Exit_Click" />
+                        <MenuFlyoutItem Text="Beenden" Command="{Binding ExitCommand}" />
                     </MenuFlyout>
                 </FlyoutBase.AttachedFlyout>
             </Image>
