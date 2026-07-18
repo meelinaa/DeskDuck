@@ -3,158 +3,151 @@ using Microsoft.Extensions.Options;
 using OllamaSharp;
 using OllamaSharp.Models;
 using OllamaSharp.Models.Chat;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Net.Http;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace DeskDuck.Features.Chat
+namespace DeskDuck.Core.Features.Chat;
+
+/// <summary>
+/// Wraps the OllamaSharp client to provide AI chat functionality backed by a locally
+/// running Ollama instance. Configuration is injected via <see cref="IOptions{OllamaOptions}"/>.
+/// </summary>
+public class OllamaChatService : IOllamaChatService
 {
+    private readonly IOptionsMonitor<OllamaOptions> _optionsMonitor;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILogger<OllamaChatService> _logger;
+    private OllamaApiClient? _client;
+
     /// <summary>
-    /// Wraps the OllamaSharp client to provide AI chat functionality backed by a locally
-    /// running Ollama instance. Configuration is injected via <see cref="IOptions{OllamaOptions}"/>.
+    /// Initializes the service with the injected Ollama options and creates the API client.
     /// </summary>
-    public class OllamaChatService : IOllamaChatService
+    public OllamaChatService(
+        IOptionsMonitor<OllamaOptions> optionsMonitor,
+        IHttpClientFactory httpClientFactory,
+        ILogger<OllamaChatService> logger)
     {
-        private readonly IOptionsMonitor<OllamaOptions> _optionsMonitor;
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly ILogger<OllamaChatService> _logger;
-        private OllamaApiClient? _client;
+        _optionsMonitor = optionsMonitor;
+        _httpClientFactory = httpClientFactory;
+        _logger = logger;
+        InitClient();
 
-        /// <summary>
-        /// Initializes the service with the injected Ollama options and creates the API client.
-        /// </summary>
-        public OllamaChatService(
-            IOptionsMonitor<OllamaOptions> optionsMonitor,
-            IHttpClientFactory httpClientFactory,
-            ILogger<OllamaChatService> logger)
+        _optionsMonitor.OnChange(config =>
         {
-            _optionsMonitor = optionsMonitor;
-            _httpClientFactory = httpClientFactory;
-            _logger = logger;
             InitClient();
+        });
+    }
 
-            _optionsMonitor.OnChange(config =>
+    /// <summary>
+    /// Creates the <see cref="OllamaApiClient"/> instance pointed at the configured URL
+    /// and pre-selects the configured model. Errors are swallowed here because the client
+    /// can be re-initialized lazily on the first actual request.
+    /// </summary>
+    private void InitClient()
+    {
+        try
+        {
+            OllamaOptions config = _optionsMonitor.CurrentValue;
+            string modelName = !string.IsNullOrEmpty(config.Model) ? config.Model : "llama3.2:latest";
+            string ollamaUrl = !string.IsNullOrEmpty(config.Url) ? config.Url : "http://localhost:11434";
+
+            HttpClient httpClient = _httpClientFactory.CreateClient("DeskDuck");
+            httpClient.BaseAddress = new Uri(ollamaUrl);
+
+            _client = new OllamaApiClient(httpClient)
+            {
+                SelectedModel = modelName
+            };
+        }
+        catch (Exception ex)
+        {
+            // Swallow: client will be re-initialized lazily on the next request.
+            _logger.LogDebug(ex, "Ollama client initialization failed. Will retry on next request.");
+        }
+    }
+
+
+    /// <summary>
+    /// Returns the names of all locally available Ollama models.
+    /// Returns an empty sequence if the Ollama service is unavailable.
+    /// </summary>
+    public async Task<IEnumerable<string>> GetLocalModelsAsync()
+    {
+        try
+        {
+            if (_client == null) InitClient();
+            if (_client == null) return [];
+
+            IEnumerable<Model> models = await _client.ListLocalModelsAsync();
+            return models.Select(m => m.Name);
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Sends the full conversation history to Ollama and returns the assistant's reply.
+    /// The configured system prompt is prepended as the first message so the model always
+    /// receives its persona instructions. If <paramref name="modelName"/> is provided and
+    /// non-empty it overrides the default configured model for this call only.
+    /// Returns a user-friendly error string instead of throwing on failure.
+    /// </summary>
+    public async Task<string> AskAsync(IEnumerable<ChatMessage> history, string modelName)
+    {
+        try
+        {
+            if (_client == null)
             {
                 InitClient();
-            });
+            }
+
+            if (_client == null)
+            {
+                throw new InvalidOperationException("Ollama Client could not be initialized.");
+            }
+
+            OllamaOptions config = _optionsMonitor.CurrentValue;
+            string activeModel = string.IsNullOrWhiteSpace(modelName) ? (string.IsNullOrWhiteSpace(config.Model) ? "llama3.2:latest" : config.Model) : modelName;
+
+            List<Message> messages = [];
+
+            messages.Add(new Message(ChatRole.System, config.Prompt ?? string.Empty));
+
+            foreach (ChatMessage chatMsg in history)
+            {
+                ChatRole role = chatMsg.IsUser ? ChatRole.User : ChatRole.Assistant;
+                messages.Add(new Message(role, chatMsg.Text));
+            }
+
+            ChatRequest chatRequest = new()
+            {
+                Model = activeModel,
+                Messages = messages,
+                Stream = false
+            };
+
+            StringBuilder responseBuilder = new();
+            await foreach (ChatResponseStream? response in _client.ChatAsync(chatRequest))
+            {
+                if (response?.Message?.Content != null)
+                {
+                    responseBuilder.Append(response.Message.Content);
+                }
+            }
+
+            string responseContent = responseBuilder.ToString();
+            if (string.IsNullOrWhiteSpace(responseContent))
+            {
+                return "Quack... Ich habe keine Antwort erhalten.";
+            }
+
+            return responseContent;
         }
-
-        /// <summary>
-        /// Creates the <see cref="OllamaApiClient"/> instance pointed at the configured URL
-        /// and pre-selects the configured model. Errors are swallowed here because the client
-        /// can be re-initialized lazily on the first actual request.
-        /// </summary>
-        private void InitClient()
+        catch (Exception ex)
         {
-            try
-            {
-                var config = _optionsMonitor.CurrentValue;
-                var modelName = !string.IsNullOrEmpty(config.Model) ? config.Model : "llama3.2:latest";
-                var ollamaUrl = !string.IsNullOrEmpty(config.Url) ? config.Url : "http://localhost:11434";
-
-                var httpClient = _httpClientFactory.CreateClient("DeskDuck");
-                httpClient.BaseAddress = new Uri(ollamaUrl);
-
-                _client = new OllamaApiClient(httpClient)
-                {
-                    SelectedModel = modelName
-                };
-            }
-            catch (Exception ex)
-            {
-                // Swallow: client will be re-initialized lazily on the next request.
-                _logger.LogDebug(ex, "Ollama client initialization failed. Will retry on next request.");
-            }
-        }
-
-
-        /// <summary>
-        /// Returns the names of all locally available Ollama models.
-        /// Returns an empty sequence if the Ollama service is unavailable.
-        /// </summary>
-        public async Task<IEnumerable<string>> GetLocalModelsAsync()
-        {
-            try
-            {
-                if (_client == null) InitClient();
-                if (_client == null) return [];
-
-                IEnumerable<Model> models = await _client.ListLocalModelsAsync();
-                return models.Select(m => m.Name);
-            }
-            catch
-            {
-                return [];
-            }
-        }
-
-        /// <summary>
-        /// Sends the full conversation history to Ollama and returns the assistant's reply.
-        /// The configured system prompt is prepended as the first message so the model always
-        /// receives its persona instructions. If <paramref name="modelName"/> is provided and
-        /// non-empty it overrides the default configured model for this call only.
-        /// Returns a user-friendly error string instead of throwing on failure.
-        /// </summary>
-        public async Task<string> AskAsync(IEnumerable<ChatMessage> history, string modelName)
-        {
-            try
-            {
-                if (_client == null)
-                {
-                    InitClient();
-                }
-
-                if (_client == null)
-                {
-                    throw new InvalidOperationException("Ollama Client could not be initialized.");
-                }
-
-                var config = _optionsMonitor.CurrentValue;
-                string activeModel = string.IsNullOrWhiteSpace(modelName) ? (string.IsNullOrWhiteSpace(config.Model) ? "llama3.2:latest" : config.Model) : modelName;
-
-                List<Message> messages = [];
-
-                messages.Add(new Message(ChatRole.System, config.Prompt ?? string.Empty));
-
-                foreach (ChatMessage chatMsg in history)
-                {
-                    ChatRole role = chatMsg.IsUser ? ChatRole.User : ChatRole.Assistant;
-                    messages.Add(new Message(role, chatMsg.Text));
-                }
-
-                ChatRequest chatRequest = new()
-                {
-                    Model = activeModel,
-                    Messages = messages,
-                    Stream = false
-                };
-
-                var responseBuilder = new StringBuilder();
-                await foreach (ChatResponseStream? response in _client.ChatAsync(chatRequest))
-                {
-                    if (response?.Message?.Content != null)
-                    {
-                        responseBuilder.Append(response.Message.Content);
-                    }
-                }
-
-                string responseContent = responseBuilder.ToString();
-                if (string.IsNullOrWhiteSpace(responseContent))
-                {
-                    return "Quack... Ich habe keine Antwort erhalten.";
-                }
-
-                return responseContent;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Ollama error");
-                return "Entschuldigung, ich konnte nicht mit meinem Gehirn (Ollama) verbinden.";
-            }
+            _logger.LogError(ex, "Ollama error");
+            return "Entschuldigung, ich konnte nicht mit meinem Gehirn (Ollama) verbinden.";
         }
     }
 }

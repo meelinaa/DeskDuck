@@ -1,6 +1,7 @@
-using DeskDuck.Helper;
-using DeskDuck.Manager;
-using DeskDuck.Models;
+using DeskDuck.Core.Features.Shell;
+using DeskDuck.Core.Helper;
+using DeskDuck.Core.Manager;
+using DeskDuck.Core.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.UI.Windowing;

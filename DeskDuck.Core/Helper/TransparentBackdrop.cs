@@ -4,7 +4,7 @@ using Microsoft.UI.Xaml.Media;
 using CompositionObject = Windows.UI.Composition.CompositionObject;
 using Compositor = Windows.UI.Composition.Compositor;
 
-namespace DeskDuck.Helper;
+namespace DeskDuck.Core.Helper;
 
 /// <summary>
 /// Custom <see cref="SystemBackdrop"/> that renders a fully transparent background,

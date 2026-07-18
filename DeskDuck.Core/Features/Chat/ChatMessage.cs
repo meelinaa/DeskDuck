@@ -1,7 +1,8 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using Windows.UI;
 
-namespace DeskDuck.Features.Chat;
+namespace DeskDuck.Core.Features.Chat;
 
 /// <summary>
 /// Represents a single message in the duck chat conversation.
@@ -28,11 +29,11 @@ public class ChatMessage
 
     /// <summary>Microsoft blue accent for user messages; light gray for AI messages.</summary>
     public Brush BackgroundBrush => IsUser
-        ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212))
-        : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 240, 240, 240));
+        ? new SolidColorBrush(Color.FromArgb(255, 0, 120, 212))
+        : new SolidColorBrush(Color.FromArgb(255, 240, 240, 240));
 
     /// <summary>White text on the blue user bubble; black text on the gray AI bubble.</summary>
     public Brush ForegroundBrush => IsUser
-        ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
-        : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
+        ? new SolidColorBrush(Color.FromArgb(255, 255, 255, 255))
+        : new SolidColorBrush(Color.FromArgb(255, 0, 0, 0));
 }

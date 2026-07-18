@@ -1,87 +1,74 @@
-using DeskDuck.Helper;
+using DeskDuck.Core.Helper;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Windows.Devices.Power;
 
-namespace DeskDuck.Features.SystemMonitor
+namespace DeskDuck.Core.Features.SystemMonitor;
+
+public class SystemMetricsProvider(ILogger<SystemMetricsProvider> logger) : ISystemMetricsProvider
 {
-    public class SystemMetricsProvider : ISystemMetricsProvider
+    private readonly ILogger<SystemMetricsProvider> _logger = logger;
+
+    public double? GetBatteryPercent()
     {
-        private readonly ILogger<SystemMetricsProvider> _logger;
-
-        public SystemMetricsProvider(ILogger<SystemMetricsProvider> logger)
+        try
         {
-            _logger = logger;
-        }
-
-        public double? GetBatteryPercent()
-        {
-            try
+            Battery aggregateBattery = Battery.AggregateBattery;
+            BatteryReport report = aggregateBattery.GetReport();
+            if (report.RemainingCapacityInMilliwattHours.HasValue && report.FullChargeCapacityInMilliwattHours.HasValue)
             {
-                Battery aggregateBattery = Battery.AggregateBattery;
-                var report = aggregateBattery.GetReport();
-                if (report.RemainingCapacityInMilliwattHours.HasValue && report.FullChargeCapacityInMilliwattHours.HasValue)
+                int full = report.FullChargeCapacityInMilliwattHours.Value;
+                int remaining = report.RemainingCapacityInMilliwattHours.Value;
+                if (full > 0)
+                    return ((double)remaining / full) * 100.0;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting battery");
+        }
+        return null;
+    }
+
+    public async Task<double?> GetCpuUsageAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (Win32WindowHelper.GetSystemTimesInfo(out var idleTime1, out var kernelTime1, out var userTime1))
+            {
+                await Task.Delay(250, cancellationToken);
+                if (Win32WindowHelper.GetSystemTimesInfo(out var idleTime2, out var kernelTime2, out var userTime2))
                 {
-                    int full = report.FullChargeCapacityInMilliwattHours.Value;
-                    int remaining = report.RemainingCapacityInMilliwattHours.Value;
-                    if (full > 0)
+                    var idleDifference = idleTime2.ToUInt64() - idleTime1.ToUInt64();
+                    var kernelDifference = kernelTime2.ToUInt64() - kernelTime1.ToUInt64();
+                    var userDifference = userTime2.ToUInt64() - userTime1.ToUInt64();
+
+                    var totalDifference = kernelDifference + userDifference;
+                    if (totalDifference > 0)
                     {
-                        return ((double)remaining / full) * 100.0;
+                        var systemTime = totalDifference - idleDifference;
+                        return (100.0 * systemTime) / totalDifference;
                     }
                 }
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting battery");
-            }
-            return null;
         }
-
-        public async Task<double?> GetCpuUsageAsync(CancellationToken cancellationToken)
+        catch (Exception ex)
         {
-            try
-            {
-                if (Win32WindowHelper.GetSystemTimesInfo(out var idleTime1, out var kernelTime1, out var userTime1))
-                {
-                    await Task.Delay(250, cancellationToken);
-                    if (Win32WindowHelper.GetSystemTimesInfo(out var idleTime2, out var kernelTime2, out var userTime2))
-                    {
-                        var idleDifference = idleTime2.ToUInt64() - idleTime1.ToUInt64();
-                        var kernelDifference = kernelTime2.ToUInt64() - kernelTime1.ToUInt64();
-                        var userDifference = userTime2.ToUInt64() - userTime1.ToUInt64();
-
-                        var totalDifference = kernelDifference + userDifference;
-                        if (totalDifference > 0)
-                        {
-                            var systemTime = totalDifference - idleDifference;
-                            return (100.0 * systemTime) / totalDifference;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting CPU usage");
-            }
-            return null;
+            _logger.LogError(ex, "Error getting CPU usage");
         }
+        return null;
+    }
 
-        public double? GetRamUsage()
+    public double? GetRamUsage()
+    {
+        try
         {
-            try
-            {
-                if (Win32WindowHelper.GetMemoryLoad(out uint memoryLoad))
-                {
-                    return memoryLoad;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting RAM usage");
-            }
-            return null;
+            if (Win32WindowHelper.GetMemoryLoad(out uint memoryLoad))
+                return memoryLoad;
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting RAM usage");
+        }
+        return null;
     }
 }

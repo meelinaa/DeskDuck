@@ -1,16 +1,10 @@
-using DeskDuck.Models;
+using DeskDuck.Core.Features.Messaging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System;
-using System.Diagnostics;
-using System.Net.Http;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
-using DeskDuck.Features.Messaging;
 
-namespace DeskDuck.Features.Weather
+namespace DeskDuck.Core.Features.Weather
 {
     /// <summary>
     /// Hosted background service that periodically fetches the current weather
@@ -67,7 +61,7 @@ namespace DeskDuck.Features.Weather
                 }
 
                 int intervalMinutes = Math.Max(1, config.IntervalMinutes);
-                
+
                 try
                 {
                     _delayCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
@@ -106,7 +100,7 @@ namespace DeskDuck.Features.Weather
             try
             {
                 string url = $"https://api.openweathermap.org/data/2.5/weather?q={Uri.EscapeDataString(city)}&appid={config.ApiKey}&units=metric&lang=de";
-                var httpClient = _httpClientFactory.CreateClient("DeskDuck");
+                HttpClient httpClient = _httpClientFactory.CreateClient("DeskDuck");
                 string response = await httpClient.GetStringAsync(url, cancellationToken);
 
                 using JsonDocument doc = JsonDocument.Parse(response);
@@ -127,9 +121,7 @@ namespace DeskDuck.Features.Weather
                 {
                     JsonElement firstWeather = weatherProp[0];
                     if (firstWeather.TryGetProperty("description", out JsonElement descProp))
-                    {
                         description = descProp.GetString() ?? "Unbekannt";
-                    }
                 }
 
                 string weatherText = $"Aktuelles Wetter in {city}: {temp:F1}°C, {description}.";

@@ -1,12 +1,8 @@
-using System.Threading;
-using System.Threading.Tasks;
+namespace DeskDuck.Core.Features.SystemMonitor;
 
-namespace DeskDuck.Features.SystemMonitor
+public interface ISystemMetricsProvider
 {
-    public interface ISystemMetricsProvider
-    {
-        double? GetBatteryPercent();
-        Task<double?> GetCpuUsageAsync(CancellationToken cancellationToken);
-        double? GetRamUsage();
-    }
+    double? GetBatteryPercent();
+    Task<double?> GetCpuUsageAsync(CancellationToken cancellationToken);
+    double? GetRamUsage();
 }

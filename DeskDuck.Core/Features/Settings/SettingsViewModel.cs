@@ -1,210 +1,138 @@
-using System;
-using DeskDuck.Helper;
-using DeskDuck.Models;
+using CommunityToolkit.Mvvm.ComponentModel;
+using DeskDuck.Core.Features.SystemMonitor;
+using DeskDuck.Core.Features.Weather;
+using DeskDuck.Core.Models;
 using Microsoft.Extensions.Logging;
-using DeskDuck.Features.Chat;
-using DeskDuck.Features.Weather;
-using DeskDuck.Features.SystemMonitor;
-using DeskDuck.Features.Messaging;
-using DeskDuck.ViewModel;
-using System.Windows.Input;
 
-namespace DeskDuck.Features.Settings
+namespace DeskDuck.Core.Features.Settings;
+
+/// <summary>
+/// View model for the settings window. Exposes bindable properties for all settings and
+/// delegates persistence to ISettingsRepository.
+/// </summary>
+public partial class SettingsViewModel : ObservableObject
 {
-    /// <summary>
-    /// View model for the settings window. Exposes bindable properties for all settings and
-    /// delegates persistence to ISettingsRepository.
-    /// </summary>
-    public partial class SettingsViewModel : ViewModelBase
+    private readonly ISettingsRepository _settingsRepository;
+    private readonly ILogger<SettingsViewModel> _logger;
+
+    public SettingsViewModel(ISettingsRepository settingsRepository, ILogger<SettingsViewModel> logger)
     {
-        private readonly ISettingsRepository _settingsRepository;
-        private readonly ILogger<SettingsViewModel> _logger;
+        _settingsRepository = settingsRepository;
+        _logger = logger;
+        Load();
+    }
 
-        public SettingsViewModel(ISettingsRepository settingsRepository, ILogger<SettingsViewModel> logger)
-        {
-            _settingsRepository = settingsRepository;
-            _logger = logger;
-            Load();
-        }
+    public string ConfigPath => _settingsRepository.GetConfigPath();
+    [ObservableProperty]
+    public partial bool ShowCoordinatesEnabled { get; set; } = true;
 
-        public string ConfigPath => _settingsRepository.GetConfigPath();
-        private bool _showCoordinatesEnabled = true;
-        private bool _sysMonitorEnabled = true;
-        private double _sysCheckInterval = 10;
-        private bool _batteryEnabled = true;
-        private double _batteryThreshold = 20;
-        private bool _cpuEnabled = true;
-        private double _cpuThreshold = 85;
-        private bool _ramEnabled = true;
-        private double _ramThreshold = 85;
-        private bool _weatherEnabled = true;
-        private double _weatherInterval = 30;
-        private string _weatherApiKey = string.Empty;
-        private string _weatherOverrideCity = string.Empty;
+    [ObservableProperty]
+    public partial bool SysMonitorEnabled { get; set; } = true;
 
-        /// <summary>Gets or sets whether coordinates are displayed on the main overlay.</summary>
-        public bool ShowCoordinatesEnabled
-        {
-            get => _showCoordinatesEnabled;
-            set => SetProperty(ref _showCoordinatesEnabled, value);
-        }
+    [ObservableProperty]
+    public partial double SysCheckInterval { get; set; } = 10;
 
-        /// <summary>Gets or sets whether the system health monitor is enabled.</summary>
-        public bool SysMonitorEnabled
-        {
-            get => _sysMonitorEnabled;
-            set => SetProperty(ref _sysMonitorEnabled, value);
-        }
+    [ObservableProperty]
+    public partial bool BatteryEnabled { get; set; } = true;
 
-        /// <summary>Gets or sets the system metrics checking interval in seconds.</summary>
-        public double SysCheckInterval
-        {
-            get => _sysCheckInterval;
-            set => SetProperty(ref _sysCheckInterval, value);
-        }
+    [ObservableProperty]
+    public partial double BatteryThreshold { get; set; } = 20;
 
-        /// <summary>Gets or sets whether battery low alerts are enabled.</summary>
-        public bool BatteryEnabled
-        {
-            get => _batteryEnabled;
-            set => SetProperty(ref _batteryEnabled, value);
-        }
+    [ObservableProperty]
+    public partial bool CpuEnabled { get; set; } = true;
 
-        /// <summary>Gets or sets the battery low warning threshold percentage.</summary>
-        public double BatteryThreshold
-        {
-            get => _batteryThreshold;
-            set => SetProperty(ref _batteryThreshold, value);
-        }
+    [ObservableProperty]
+    public partial double CpuThreshold { get; set; } = 85;
 
-        /// <summary>Gets or sets whether high CPU usage warnings are enabled.</summary>
-        public bool CpuEnabled
-        {
-            get => _cpuEnabled;
-            set => SetProperty(ref _cpuEnabled, value);
-        }
+    [ObservableProperty]
+    public partial bool RamEnabled { get; set; } = true;
 
-        /// <summary>Gets or sets the CPU warning threshold percentage.</summary>
-        public double CpuThreshold
-        {
-            get => _cpuThreshold;
-            set => SetProperty(ref _cpuThreshold, value);
-        }
+    [ObservableProperty]
+    public partial double RamThreshold { get; set; } = 85;
 
-        /// <summary>Gets or sets whether high RAM usage warnings are enabled.</summary>
-        public bool RamEnabled
-        {
-            get => _ramEnabled;
-            set => SetProperty(ref _ramEnabled, value);
-        }
+    [ObservableProperty]
+    public partial bool WeatherEnabled { get; set; } = true;
 
-        /// <summary>Gets or sets the RAM warning threshold percentage.</summary>
-        public double RamThreshold
-        {
-            get => _ramThreshold;
-            set => SetProperty(ref _ramThreshold, value);
-        }
+    [ObservableProperty]
+    public partial double WeatherInterval { get; set; } = 30;
 
-        /// <summary>Gets or sets whether the weather publisher is enabled.</summary>
-        public bool WeatherEnabled
-        {
-            get => _weatherEnabled;
-            set => SetProperty(ref _weatherEnabled, value);
-        }
+    [ObservableProperty]
+    public partial string WeatherApiKey { get; set; } = string.Empty;
 
-        /// <summary>Gets or sets the weather update interval in minutes.</summary>
-        public double WeatherInterval
-        {
-            get => _weatherInterval;
-            set => SetProperty(ref _weatherInterval, value);
-        }
+    [ObservableProperty]
+    public partial string WeatherOverrideCity { get; set; } = string.Empty;
 
-        /// <summary>Gets or sets the OpenWeatherMap API Key.</summary>
-        public string WeatherApiKey
-        {
-            get => _weatherApiKey;
-            set => SetProperty(ref _weatherApiKey, value ?? string.Empty);
-        }
-
-        /// <summary>Gets or sets the override city for weather reports.</summary>
-        public string WeatherOverrideCity
-        {
-            get => _weatherOverrideCity;
-            set => SetProperty(ref _weatherOverrideCity, value ?? string.Empty);
-        }
-
-        /// <summary>
-        /// Reads settings from the central appsettings.json and populates view model properties.
-        /// </summary>
-        public void Load()
-        {
-            try
-            {
-                AppSettingsModel settings = _settingsRepository.LoadSettings();
-
-                ShowCoordinatesEnabled = settings.General.ShowCoordinates;
-
-                if (settings.Publishers != null)
-                {
-                    SystemMonitorOptions sys = settings.Publishers.SystemMonitor;
-                    SysMonitorEnabled = sys.Enabled;
-                    SysCheckInterval = sys.CheckIntervalSeconds;
-                    BatteryEnabled = sys.BatteryWarningEnabled;
-                    BatteryThreshold = sys.BatteryWarningThresholdPercent;
-                    CpuEnabled = sys.CpuWarningEnabled;
-                    CpuThreshold = sys.CpuWarningThresholdPercent;
-                    RamEnabled = sys.RamWarningEnabled;
-                    RamThreshold = sys.RamWarningThresholdPercent;
-
-                    WeatherPublisherOptions weather = settings.Publishers.Weather;
-                    WeatherEnabled = weather.Enabled;
-                    WeatherInterval = weather.IntervalMinutes;
-                    WeatherApiKey = weather.ApiKey;
-                    WeatherOverrideCity = weather.OverrideCity;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error loading config");
-            }
-        }
-
-        /// <summary>
-        /// Saves current property values back to the central appsettings.json file,
-        /// while preserving all other configuration sections (e.g. RabbitMQ, Duck, Ollama).
-        /// </summary>
-        public void Save()
+    /// <summary>
+    /// Reads settings from the central appsettings.json and populates view model properties.
+    /// </summary>
+    public void Load()
+    {
+        try
         {
             AppSettingsModel settings = _settingsRepository.LoadSettings();
 
-            settings.General = new GeneralSection
-            {
-                ShowCoordinates = ShowCoordinatesEnabled
-            };
+            ShowCoordinatesEnabled = settings.General.ShowCoordinates;
 
-            settings.Publishers = new PublishersSection
+            if (settings.Publishers != null)
             {
-                SystemMonitor = new SystemMonitorOptions
-                {
-                    Enabled = SysMonitorEnabled,
-                    CheckIntervalSeconds = (int)SysCheckInterval,
-                    BatteryWarningEnabled = BatteryEnabled,
-                    BatteryWarningThresholdPercent = (int)BatteryThreshold,
-                    CpuWarningEnabled = CpuEnabled,
-                    CpuWarningThresholdPercent = (int)CpuThreshold,
-                    RamWarningEnabled = RamEnabled,
-                    RamWarningThresholdPercent = (int)RamThreshold
-                },
-                Weather = new WeatherPublisherOptions
-                {
-                    Enabled = WeatherEnabled,
-                    IntervalMinutes = (int)WeatherInterval,
-                    ApiKey = WeatherApiKey,
-                    OverrideCity = WeatherOverrideCity
-                }
-            };
+                SystemMonitorOptions sys = settings.Publishers.SystemMonitor;
+                SysMonitorEnabled = sys.Enabled;
+                SysCheckInterval = sys.CheckIntervalSeconds;
+                BatteryEnabled = sys.BatteryWarningEnabled;
+                BatteryThreshold = sys.BatteryWarningThresholdPercent;
+                CpuEnabled = sys.CpuWarningEnabled;
+                CpuThreshold = sys.CpuWarningThresholdPercent;
+                RamEnabled = sys.RamWarningEnabled;
+                RamThreshold = sys.RamWarningThresholdPercent;
 
-            _settingsRepository.SaveSettings(settings);
+                WeatherPublisherOptions weather = settings.Publishers.Weather;
+                WeatherEnabled = weather.Enabled;
+                WeatherInterval = weather.IntervalMinutes;
+                WeatherApiKey = weather.ApiKey;
+                WeatherOverrideCity = weather.OverrideCity;
+            }
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading config");
+        }
+    }
+
+    /// <summary>
+    /// Saves current property values back to the central appsettings.json file,
+    /// while preserving all other configuration sections (e.g. RabbitMQ, Duck, Ollama).
+    /// </summary>
+    public void Save()
+    {
+        AppSettingsModel settings = _settingsRepository.LoadSettings();
+
+        settings.General = new GeneralSection
+        {
+            ShowCoordinates = ShowCoordinatesEnabled
+        };
+
+        settings.Publishers = new PublishersSection
+        {
+            SystemMonitor = new SystemMonitorOptions
+            {
+                Enabled = SysMonitorEnabled,
+                CheckIntervalSeconds = (int)SysCheckInterval,
+                BatteryWarningEnabled = BatteryEnabled,
+                BatteryWarningThresholdPercent = (int)BatteryThreshold,
+                CpuWarningEnabled = CpuEnabled,
+                CpuWarningThresholdPercent = (int)CpuThreshold,
+                RamWarningEnabled = RamEnabled,
+                RamWarningThresholdPercent = (int)RamThreshold
+            },
+            Weather = new WeatherPublisherOptions
+            {
+                Enabled = WeatherEnabled,
+                IntervalMinutes = (int)WeatherInterval,
+                ApiKey = WeatherApiKey,
+                OverrideCity = WeatherOverrideCity
+            }
+        };
+
+        _settingsRepository.SaveSettings(settings);
     }
 }

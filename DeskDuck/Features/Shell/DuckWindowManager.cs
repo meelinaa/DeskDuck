@@ -1,11 +1,14 @@
+using DeskDuck.Core.Features.Chat;
+using DeskDuck.Core.Features.Shell;
 using DeskDuck.Features.Chat;
 using DeskDuck.Features.Settings;
-using DeskDuck.Manager;
+using DeskDuck.Core.Features.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Windowing;
 using System;
 using Windows.Graphics;
+using DeskDuck.Core.Manager;
 
 namespace DeskDuck.Features.Shell
 {

@@ -1,12 +1,10 @@
 using DeskDuck.Models;
-using DeskDuck.ViewModel;
+using DeskDuck.Core.Core;
 using DeskDuck.Features.Shell;
 using DeskDuck.Features.Chat;
 using DeskDuck.Features.Weather;
 using DeskDuck.Features.SystemMonitor;
-using DeskDuck.Features.Settings;
-using DeskDuck.Features.Messaging;
-using DeskDuck.Core;
+using DeskDuck.Core.Features.Messaging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,6 +12,8 @@ using Microsoft.UI.Xaml;
 using Serilog;
 using System;
 using System.IO;
+using DeskDuck.Core.Features.Settings;
+using DeskDuck.Core.Features.Shell;
 
 namespace DeskDuck
 {

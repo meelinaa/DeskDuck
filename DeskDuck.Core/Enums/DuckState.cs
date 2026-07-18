@@ -1,4 +1,4 @@
-namespace DeskDuck.Enums;
+namespace DeskDuck.Core.Enums;
 
 /// <summary>
 /// Represents the current animation/behavioral state of the duck overlay.

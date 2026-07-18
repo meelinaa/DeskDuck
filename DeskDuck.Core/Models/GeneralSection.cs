@@ -1,4 +1,4 @@
-namespace DeskDuck.Models;
+namespace DeskDuck.Core.Models;
 
 /// <summary>
 /// General UI settings that apply to the main overlay window.

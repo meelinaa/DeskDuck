@@ -1,8 +1,7 @@
-using DeskDuck.Enums;
+using DeskDuck.Core.Enums;
 using Stateless;
-using System;
 
-namespace DeskDuck.Manager;
+namespace DeskDuck.Core.Manager;
 
 /// <summary>
 /// Encapsulates the Stateless state machine for the duck's behavioral states.
@@ -19,8 +18,6 @@ public class DuckStateMachine
     public DuckStateMachine()
     {
         _machine = new StateMachine<DuckState, DuckTrigger>(DuckState.Waiting);
-
-        // Define state transitions
 
         // From Waiting
         _machine.Configure(DuckState.Waiting)
@@ -69,8 +66,6 @@ public class DuckStateMachine
     public void Fire(DuckTrigger trigger)
     {
         if (_machine.CanFire(trigger))
-        {
             _machine.Fire(trigger);
-        }
     }
 }

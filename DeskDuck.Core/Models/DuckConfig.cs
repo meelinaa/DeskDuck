@@ -1,4 +1,4 @@
-namespace DeskDuck.Models;
+namespace DeskDuck.Core.Models;
 
 /// <summary>
 /// Movement configuration for the duck overlay, loaded from config.json at startup.

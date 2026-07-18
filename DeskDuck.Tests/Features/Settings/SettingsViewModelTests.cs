@@ -1,11 +1,9 @@
-using DeskDuck.Features.Settings;
-using DeskDuck.Features.SystemMonitor;
-using DeskDuck.Features.Weather;
-using DeskDuck.Models;
+using DeskDuck.Core.Features.Settings;
+using DeskDuck.Core.Features.SystemMonitor;
+using DeskDuck.Core.Features.Weather;
+using DeskDuck.Core.Models;
 using Microsoft.Extensions.Logging;
 using Moq;
-using System.ComponentModel;
-using Xunit;
 
 namespace DeskDuck.Tests.Features.Settings
 {
@@ -35,7 +33,7 @@ namespace DeskDuck.Tests.Features.Settings
         public void Load_InitializesPropertiesFromRepository()
         {
             // Arrange & Act
-            var viewModel = new SettingsViewModel(_mockRepo.Object, _mockLogger.Object);
+            SettingsViewModel viewModel = new(_mockRepo.Object, _mockLogger.Object);
 
             // Assert
             Assert.True(viewModel.ShowCoordinatesEnabled);
@@ -49,7 +47,7 @@ namespace DeskDuck.Tests.Features.Settings
         public void SettingProperty_RaisesPropertyChangedEvent()
         {
             // Arrange
-            var viewModel = new SettingsViewModel(_mockRepo.Object, _mockLogger.Object);
+            SettingsViewModel viewModel = new(_mockRepo.Object, _mockLogger.Object);
             string? changedPropertyName = null;
             viewModel.PropertyChanged += (s, e) => changedPropertyName = e.PropertyName;
 
@@ -65,12 +63,13 @@ namespace DeskDuck.Tests.Features.Settings
         public void Save_WritesUpdatedSettingsToRepository()
         {
             // Arrange
-            var viewModel = new SettingsViewModel(_mockRepo.Object, _mockLogger.Object);
-            
-            // Modify some settings
-            viewModel.RamThreshold = 95;
-            viewModel.WeatherEnabled = true;
-            viewModel.ShowCoordinatesEnabled = false;
+            SettingsViewModel viewModel = new(_mockRepo.Object, _mockLogger.Object)
+            {
+                // Modify some settings
+                RamThreshold = 95,
+                WeatherEnabled = true,
+                ShowCoordinatesEnabled = false
+            };
 
             AppSettingsModel? savedSettings = null;
             _mockRepo.Setup(r => r.SaveSettings(It.IsAny<AppSettingsModel>()))
@@ -83,7 +82,7 @@ namespace DeskDuck.Tests.Features.Settings
             _mockRepo.Verify(r => r.SaveSettings(It.IsAny<AppSettingsModel>()), Times.Once);
             Assert.NotNull(savedSettings);
             Assert.NotNull(savedSettings.Publishers?.SystemMonitor);
-            
+
             Assert.Equal(95, savedSettings.Publishers.SystemMonitor.RamWarningThresholdPercent);
             Assert.True(savedSettings.Publishers.Weather?.Enabled);
             Assert.False(savedSettings.General?.ShowCoordinates);

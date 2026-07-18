@@ -1,5 +1,6 @@
-using DeskDuck.Helper;
-using DeskDuck.Manager;
+using DeskDuck.Core.Features.Shell;
+using DeskDuck.Core.Helper;
+using DeskDuck.Core.Manager;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;

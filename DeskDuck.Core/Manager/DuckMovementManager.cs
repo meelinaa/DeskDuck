@@ -1,14 +1,12 @@
-using DeskDuck.Enums;
-using DeskDuck.Models;
+using DeskDuck.Core.Enums;
+using DeskDuck.Core.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
-using System;
-using System.Threading.Tasks;
 using Windows.Graphics;
 
-namespace DeskDuck.Manager
+namespace DeskDuck.Core.Manager
 {
     /// <summary>
     /// Manages the autonomous movement of the duck overlay window across the desktop.
@@ -31,9 +29,9 @@ namespace DeskDuck.Manager
         private double _targetY;
         private double _dx;
         private double _dy;
-        
+
         private readonly DuckStateMachine _stateMachine;
-        private System.Threading.CancellationTokenSource? _waitCts;
+        private CancellationTokenSource? _waitCts;
 
         /// <summary>Raised whenever the duck transitions to a new <see cref="DuckState"/>.</summary>
         public event Action<DuckState>? StateChanged;
@@ -53,7 +51,7 @@ namespace DeskDuck.Manager
         public void Resume()
         {
             if (_appWindow == null) return;
-            
+
             _currentX = _appWindow.Position.X;
             _currentY = _appWindow.Position.Y;
             _stateMachine.Fire(DuckTrigger.Release);
@@ -67,14 +65,14 @@ namespace DeskDuck.Manager
         public void Start()
         {
             if (_appWindow == null) return;
-            
+
             _currentX = _appWindow.Position.X;
             _currentY = _appWindow.Position.Y;
-            
+
             // if already in waiting/walking, Resume does nothing or is ignored.
             // if Stopped, this transitions to Waiting.
             _stateMachine.Fire(DuckTrigger.Resume);
-            
+
             PositionChanged?.Invoke((int)_currentX, (int)_currentY);
         }
 
@@ -90,7 +88,7 @@ namespace DeskDuck.Manager
         {
             _appWindow = appWindow;
 
-            var display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
+            DisplayArea display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
             _currentX = (display.OuterBounds.Width - _appWindow.Size.Width) / 2;
             _currentY = (display.OuterBounds.Height - _appWindow.Size.Height) / 2;
             _appWindow.Move(new PointInt32((int)_currentX, (int)_currentY));
@@ -98,7 +96,7 @@ namespace DeskDuck.Manager
             _movementTimer = dispatcherQueue.CreateTimer();
             _movementTimer.Interval = TimeSpan.FromMilliseconds(16);
             _movementTimer.Tick += OnTimerTick;
-            
+
             // Trigger initial state
             OnStateMachineTransitioned(_stateMachine.CurrentState);
         }
@@ -113,8 +111,8 @@ namespace DeskDuck.Manager
                 {
                     _movementTimer?.Stop();
                     _waitCts?.Cancel();
-                    _waitCts = new System.Threading.CancellationTokenSource();
-                    var token = _waitCts.Token;
+                    _waitCts = new CancellationTokenSource();
+                    CancellationToken token = _waitCts.Token;
 
                     int waitTimeMs = _random.Next(_config.MinWaitSeconds * 1000, (_config.MaxWaitSeconds + 1) * 1000);
 
@@ -129,7 +127,7 @@ namespace DeskDuck.Manager
 
                     if (_stateMachine.CurrentState != DuckState.Waiting || _appWindow == null) return;
 
-                    var display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
+                    DisplayArea display = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
                     int maxX = display.OuterBounds.Width - _appWindow.Size.Width;
                     int maxY = display.OuterBounds.Height - _appWindow.Size.Height;
 
@@ -194,7 +192,7 @@ namespace DeskDuck.Manager
                 _currentY = _targetY;
                 _appWindow?.Move(new PointInt32((int)_currentX, (int)_currentY));
                 PositionChanged?.Invoke((int)_currentX, (int)_currentY);
-                
+
                 _stateMachine.Fire(DuckTrigger.ReachDestination);
             }
             else

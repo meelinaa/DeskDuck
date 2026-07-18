@@ -1,3 +1,4 @@
+using DeskDuck.Core.Features.Chat;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
@@ -15,7 +16,7 @@ namespace DeskDuck.Features.Chat;
 public sealed partial class ChatWindow : Window
 {
     /// <summary>The view model that drives the chat UI.</summary>
-    public ChatViewModel ChatViewModel { get; }
+    public global::DeskDuck.Core.Features.Chat.ChatViewModel ViewModel { get; }
 
     /// <summary>
     /// Initializes the chat window: sets the title, fixes the size, keeps it always on top,
@@ -26,7 +27,7 @@ public sealed partial class ChatWindow : Window
     {
         InitializeComponent();
 
-        ChatViewModel = chatViewModel;
+        ViewModel = chatViewModel;
 
         Title = "Chat mit DeskDuck AI";
         AppWindow.Resize(new SizeInt32(400, 550));
@@ -51,7 +52,7 @@ public sealed partial class ChatWindow : Window
         if (!_isLoaded)
         {
             _isLoaded = true;
-            await ChatViewModel.LoadModelsAsync();
+            await ViewModel.LoadModelsAsync();
         }
     }
 
@@ -83,7 +84,7 @@ public sealed partial class ChatWindow : Window
     {
         if (string.IsNullOrWhiteSpace(InputTextBox.Text))
             return;
-        Task? sendTask = ChatViewModel.SendMessageAsync();
+        Task? sendTask = ViewModel.SendMessageAsync();
         ScrollToBottom();
         await sendTask; // Wait for the AI response to be added to the message list
         ScrollToBottom();
@@ -96,7 +97,7 @@ public sealed partial class ChatWindow : Window
     /// </summary>
     private void ScrollToBottom()
     {
-        if (ChatViewModel.Messages.Count > 0)
-            MessagesList.ScrollIntoView(ChatViewModel.Messages[ChatViewModel.Messages.Count - 1]);
+        if (ViewModel.Messages.Count > 0)
+            MessagesList.ScrollIntoView(ViewModel.Messages[ViewModel.Messages.Count - 1]);
     }
 }

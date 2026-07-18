@@ -1,7 +1,7 @@
-using DeskDuck.Features.Weather;
-using DeskDuck.Features.SystemMonitor;
+using DeskDuck.Core.Features.SystemMonitor;
+using DeskDuck.Core.Features.Weather;
 
-namespace DeskDuck.Models;
+namespace DeskDuck.Core.Models;
 
 /// <summary>
 /// Groups all publisher service configurations under a single "Publishers" section

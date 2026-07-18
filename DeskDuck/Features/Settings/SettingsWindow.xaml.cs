@@ -1,3 +1,4 @@
+using DeskDuck.Core.Features.Settings;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;

@@ -1,12 +1,11 @@
 using Microsoft.UI.Windowing;
 
-namespace DeskDuck.Features.Shell
+namespace DeskDuck.Core.Features.Shell;
+
+public interface IDuckWindowManager
 {
-    public interface IDuckWindowManager
-    {
-        void Initialize(AppWindow duckAppWindow);
-        void OpenChatWindow();
-        void OpenSettingsWindow();
-        void CloseAll();
-    }
+    void Initialize(AppWindow duckAppWindow);
+    void OpenChatWindow();
+    void OpenSettingsWindow();
+    void CloseAll();
 }

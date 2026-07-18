@@ -1,11 +1,8 @@
-using DeskDuck.Features.Messaging;
-using DeskDuck.Features.SystemMonitor;
+using DeskDuck.Core.Features.Messaging;
+using DeskDuck.Core.Features.SystemMonitor;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using System.Threading;
-using System.Threading.Tasks;
-using Xunit;
 
 namespace DeskDuck.Tests.Features.SystemMonitor
 {
@@ -23,7 +20,7 @@ namespace DeskDuck.Tests.Features.SystemMonitor
             _mockLogger = new Mock<ILogger<SystemMonitorPublisherService>>();
             _mockMetrics = new Mock<ISystemMetricsProvider>();
 
-            var config = new SystemMonitorOptions
+            SystemMonitorOptions config = new()
             {
                 Enabled = true,
                 RamWarningEnabled = true,
@@ -44,7 +41,7 @@ namespace DeskDuck.Tests.Features.SystemMonitor
             _mockMetrics.Setup(m => m.GetCpuUsageAsync(It.IsAny<CancellationToken>())).ReturnsAsync(50.0);
             _mockMetrics.Setup(m => m.GetBatteryPercent()).Returns(100.0);
 
-            var service = new SystemMonitorPublisherService(
+            SystemMonitorPublisherService service = new(
                 _mockOptions.Object,
                 _mockPublisher.Object,
                 _mockLogger.Object,
@@ -70,7 +67,7 @@ namespace DeskDuck.Tests.Features.SystemMonitor
             _mockMetrics.Setup(m => m.GetCpuUsageAsync(It.IsAny<CancellationToken>())).ReturnsAsync(50.0); // Under 90
             _mockMetrics.Setup(m => m.GetBatteryPercent()).Returns(50.0); // Above 20
 
-            var service = new SystemMonitorPublisherService(
+            SystemMonitorPublisherService service = new(
                 _mockOptions.Object,
                 _mockPublisher.Object,
                 _mockLogger.Object,
@@ -92,7 +89,7 @@ namespace DeskDuck.Tests.Features.SystemMonitor
         public async Task CheckSystemMetrics_WithInvalidThreshold_ClampsToValidRange()
         {
             // Arrange
-            var invalidConfig = new SystemMonitorOptions
+            SystemMonitorOptions invalidConfig = new() 
             {
                 Enabled = true,
                 RamWarningEnabled = true,
@@ -101,14 +98,14 @@ namespace DeskDuck.Tests.Features.SystemMonitor
                 CpuWarningThresholdPercent = -10, // Invalid, should be clamped to 0
                 BatteryWarningEnabled = false
             };
-            
+
             // If RAM threshold is clamped to 100, then Ram=90 should NOT trigger a warning
             _mockMetrics.Setup(m => m.GetRamUsage()).Returns(90.0);
-            
+
             // If CPU threshold is clamped to 0, then Cpu=10 should trigger a warning
             _mockMetrics.Setup(m => m.GetCpuUsageAsync(It.IsAny<CancellationToken>())).ReturnsAsync(10.0);
 
-            var service = new SystemMonitorPublisherService(
+            SystemMonitorPublisherService service = new(
                 _mockOptions.Object,
                 _mockPublisher.Object,
                 _mockLogger.Object,

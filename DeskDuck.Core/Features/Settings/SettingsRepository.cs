@@ -1,92 +1,79 @@
-using DeskDuck.Models;
+using DeskDuck.Core.Models;
 using Microsoft.Extensions.Logging;
-using System;
-using System.IO;
 using System.Text.Json;
 
-namespace DeskDuck.Features.Settings
+namespace DeskDuck.Core.Features.Settings;
+
+/// <summary>
+/// Provides methods for resolving the application configuration file path and loading/saving settings.
+/// Settings are stored per-user in %LocalAppData%\DeskDuck so that they survive
+/// application updates without being overwritten.
+/// </summary>
+public class SettingsRepository(ILogger<SettingsRepository> logger) : ISettingsRepository
 {
-    /// <summary>
-    /// Provides methods for resolving the application configuration file path and loading/saving settings.
-    /// Settings are stored per-user in %LocalAppData%\DeskDuck so that they survive
-    /// application updates without being overwritten.
-    /// </summary>
-    public class SettingsRepository : ISettingsRepository
+    private readonly ILogger<SettingsRepository> _logger = logger;
+
+    public string GetConfigPath()
     {
-        private readonly ILogger<SettingsRepository> _logger;
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string duckFolder = Path.Combine(appData, "DeskDuck");
 
-        public SettingsRepository(ILogger<SettingsRepository> logger)
+        if (!Directory.Exists(duckFolder))
+            Directory.CreateDirectory(duckFolder);
+        
+        string userConfig = Path.Combine(duckFolder, "appsettings.json");
+
+        if (!File.Exists(userConfig))
         {
-            _logger = logger;
+            string baseConfig = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+            if (File.Exists(baseConfig))
+                File.Copy(baseConfig, userConfig);
+            
+            else            
+                File.WriteAllText(userConfig, "{}");
         }
 
-        public string GetConfigPath()
+        return userConfig;
+    }
+
+    public AppSettingsModel LoadSettings()
+    {
+        try
         {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string duckFolder = Path.Combine(appData, "DeskDuck");
-
-            if (!Directory.Exists(duckFolder))
+            string configPath = GetConfigPath();
+            if (File.Exists(configPath))
             {
-                Directory.CreateDirectory(duckFolder);
-            }
-
-            string userConfig = Path.Combine(duckFolder, "appsettings.json");
-
-            if (!File.Exists(userConfig))
-            {
-                string baseConfig = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-                if (File.Exists(baseConfig))
+                string json = File.ReadAllText(configPath);
+                return JsonSerializer.Deserialize<AppSettingsModel>(json, new JsonSerializerOptions
                 {
-                    File.Copy(baseConfig, userConfig);
-                }
-                else
-                {
-                    File.WriteAllText(userConfig, "{}");
-                }
-            }
-
-            return userConfig;
-        }
-
-        public AppSettingsModel LoadSettings()
-        {
-            try
-            {
-                string configPath = GetConfigPath();
-                if (File.Exists(configPath))
-                {
-                    string json = File.ReadAllText(configPath);
-                    return JsonSerializer.Deserialize<AppSettingsModel>(json, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                        TypeInfoResolver = AppJsonSerializerContext.Default
-                    }) ?? new AppSettingsModel();
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error loading config");
-            }
-            return new AppSettingsModel();
-        }
-
-        public void SaveSettings(AppSettingsModel settings)
-        {
-            try
-            {
-                string configPath = GetConfigPath();
-                JsonSerializerOptions options = new()
-                {
-                    WriteIndented = true,
+                    PropertyNameCaseInsensitive = true,
                     TypeInfoResolver = AppJsonSerializerContext.Default
-                };
-                string json = JsonSerializer.Serialize(settings, options);
-                File.WriteAllText(configPath, json);
+                }) ?? new AppSettingsModel();
             }
-            catch (Exception ex)
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading config");
+        }
+        return new AppSettingsModel();
+    }
+
+    public void SaveSettings(AppSettingsModel settings)
+    {
+        try
+        {
+            string configPath = GetConfigPath();
+            JsonSerializerOptions options = new()
             {
-                _logger.LogError(ex, "Error saving config");
-            }
+                WriteIndented = true,
+                TypeInfoResolver = AppJsonSerializerContext.Default
+            };
+            string json = JsonSerializer.Serialize(settings, options);
+            File.WriteAllText(configPath, json);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving config");
         }
     }
 }

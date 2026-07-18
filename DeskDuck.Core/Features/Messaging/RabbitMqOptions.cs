@@ -1,21 +1,20 @@
-namespace DeskDuck.Features.Messaging
+namespace DeskDuck.Core.Features.Messaging;
+
+/// <summary>
+/// Configuration options for the RabbitMQ broker connection.
+/// Maps to the "RabbitMQ" section of appsettings.json.
+/// </summary>
+public class RabbitMqOptions
 {
-    /// <summary>
-    /// Configuration options for the RabbitMQ broker connection.
-    /// Maps to the "RabbitMQ" section of appsettings.json.
-    /// </summary>
-    public class RabbitMqOptions
-    {
-        /// <summary>The hostname of the RabbitMQ server.</summary>
-        public string HostName { get; set; } = MessagingConstants.DefaultHostName;
+    /// <summary>The hostname of the RabbitMQ server.</summary>
+    public string HostName { get; set; } = MessagingConstants.DefaultHostName;
 
-        /// <summary>The username to authenticate with RabbitMQ.</summary>
-        public string UserName { get; set; } = MessagingConstants.DefaultUserName;
+    /// <summary>The username to authenticate with RabbitMQ.</summary>
+    public string UserName { get; set; } = MessagingConstants.DefaultUserName;
 
-        /// <summary>The password to authenticate with RabbitMQ.</summary>
-        public string Password { get; set; } = MessagingConstants.DefaultPassword;
+    /// <summary>The password to authenticate with RabbitMQ.</summary>
+    public string Password { get; set; } = MessagingConstants.DefaultPassword;
 
-        /// <summary>The name of the RabbitMQ queue to publish notifications to.</summary>
-        public string QueueName { get; set; } = MessagingConstants.DefaultQueueName;
-    }
+    /// <summary>The name of the RabbitMQ queue to publish notifications to.</summary>
+    public string QueueName { get; set; } = MessagingConstants.DefaultQueueName;
 }

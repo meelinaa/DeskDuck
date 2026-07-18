@@ -1,12 +1,7 @@
-using DeskDuck.Features.Messaging;
-using DeskDuck.Models;
+using DeskDuck.Core.Features.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using Xunit;
 
 namespace DeskDuck.Tests.Features.Messaging
 {
@@ -20,7 +15,7 @@ namespace DeskDuck.Tests.Features.Messaging
             _mockOptions = new Mock<IOptionsMonitor<RabbitMqOptions>>();
             _mockLogger = new Mock<ILogger<RabbitMqPublisher>>();
 
-            var config = new RabbitMqOptions
+            RabbitMqOptions config = new() 
             {
                 HostName = "invalid.local", // Use an invalid host to intentionally fail connection
                 UserName = "test",
@@ -34,7 +29,7 @@ namespace DeskDuck.Tests.Features.Messaging
         public async Task PublishAsync_WhenConnectionFails_CatchesExceptionAndLogsError()
         {
             // Arrange
-            var publisher = new RabbitMqPublisher(_mockOptions.Object, _mockLogger.Object);
+            RabbitMqPublisher publisher = new(_mockOptions.Object, _mockLogger.Object);
 
             // Act
             // This will try to connect to invalid.local, which will fail and throw an exception.
@@ -62,14 +57,14 @@ namespace DeskDuck.Tests.Features.Messaging
                 .Callback<Action<RabbitMqOptions, string>>(listener => capturedListener = listener)
                 .Returns(Mock.Of<IDisposable>());
 
-            var publisher = new RabbitMqPublisher(_mockOptions.Object, _mockLogger.Object);
+            RabbitMqPublisher publisher = new(_mockOptions.Object, _mockLogger.Object);
 
             Assert.NotNull(capturedListener);
 
             // Act & Assert
             // Manually trigger the OnChange event to simulate appsettings.json being saved
-            var exception = Record.Exception(() => capturedListener.Invoke(_mockOptions.Object.CurrentValue, string.Empty));
-            
+            Exception exception = Record.Exception(() => capturedListener.Invoke(_mockOptions.Object.CurrentValue, string.Empty));
+
             // The event handler is async void (or async Task captured as Action), but we ensure it doesn't immediately crash.
             Assert.Null(exception);
         }
@@ -78,14 +73,14 @@ namespace DeskDuck.Tests.Features.Messaging
         public async Task PublishAsync_WhenConfigIsMissing_LogsErrorAndDoesNotCrash()
         {
             // Arrange
-            var invalidConfig = new RabbitMqOptions
+            RabbitMqOptions invalidConfig = new() 
             {
                 HostName = "", // Empty HostName
                 QueueName = ""
             };
             _mockOptions.Setup(o => o.CurrentValue).Returns(invalidConfig);
-            
-            var publisher = new RabbitMqPublisher(_mockOptions.Object, _mockLogger.Object);
+
+            RabbitMqPublisher publisher = new(_mockOptions.Object, _mockLogger.Object);
 
             // Act
             await publisher.PublishAsync("Source", "Info", "Message", null, CancellationToken.None);

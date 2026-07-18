@@ -1,4 +1,4 @@
-namespace DeskDuck.Models;
+namespace DeskDuck.Core.Models;
 
 /// <summary>
 /// Data transfer object for notification messages exchanged via RabbitMQ.

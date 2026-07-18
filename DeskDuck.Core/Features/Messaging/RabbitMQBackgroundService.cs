@@ -1,205 +1,192 @@
-using DeskDuck.Messages;
-using DeskDuck.Models;
+using CommunityToolkit.Mvvm.Messaging;
+using DeskDuck.Core.Messages;
+using DeskDuck.Core.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using System;
-using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.Messaging;
 
-namespace DeskDuck.Features.Messaging
+namespace DeskDuck.Core.Features.Messaging;
+
+/// <summary>
+/// Background service that maintains a persistent RabbitMQ consumer connection and
+/// dispatches incoming notification messages to the UI via IMessenger.
+/// Automatically reconnects on connection failures with a 5-second retry delay.
+/// </summary>
+public partial class RabbitMQBackgroundService : BackgroundService
 {
-    /// <summary>
-    /// Background service that maintains a persistent RabbitMQ consumer connection and
-    /// dispatches incoming notification messages to the UI via IMessenger.
-    /// Automatically reconnects on connection failures with a 5-second retry delay.
-    /// </summary>
-    public class RabbitMQBackgroundService : BackgroundService
+    private readonly IOptionsMonitor<RabbitMqOptions> _optionsMonitor;
+    private readonly ILogger<RabbitMQBackgroundService> _logger;
+    private readonly IMessenger _messenger;
+    private IConnection? _connection;
+    private IChannel? _channel;
+    private CancellationTokenSource? _reconnectCts;
+
+    public RabbitMQBackgroundService(
+        IOptionsMonitor<RabbitMqOptions> optionsMonitor,
+        ILogger<RabbitMQBackgroundService> logger,
+        IMessenger messenger)
     {
-        private readonly IOptionsMonitor<RabbitMqOptions> _optionsMonitor;
-        private readonly ILogger<RabbitMQBackgroundService> _logger;
-        private readonly IMessenger _messenger;
-        private IConnection? _connection;
-        private IChannel? _channel;
-        private CancellationTokenSource? _reconnectCts;
+        _optionsMonitor = optionsMonitor;
+        _logger = logger;
+        _messenger = messenger;
 
-        public RabbitMQBackgroundService(
-            IOptionsMonitor<RabbitMqOptions> optionsMonitor,
-            ILogger<RabbitMQBackgroundService> logger,
-            IMessenger messenger)
+        _optionsMonitor.OnChange(config =>
         {
-            _optionsMonitor = optionsMonitor;
-            _logger = logger;
-            _messenger = messenger;
+            // Trigger a cancellation to reconnect with the new settings
+            _reconnectCts?.Cancel();
+        });
+    }
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await CleanupRabbitMqResourcesAsync();
+        await base.StopAsync(cancellationToken);
+    }
 
-            _optionsMonitor.OnChange(config =>
+    /// <summary>
+    /// Gracefully closes and disposes the connection and channel if they exist.
+    /// </summary>
+    private async Task CleanupRabbitMqResourcesAsync()
+    {
+        if (_channel != null)
+        {
+            try
             {
-                // Trigger a cancellation to reconnect with the new settings
-                _reconnectCts?.Cancel();
-            });
-        }
-        public override async Task StopAsync(CancellationToken cancellationToken)
-        {
-            await CleanupRabbitMqResourcesAsync();
-            await base.StopAsync(cancellationToken);
-        }
-
-        /// <summary>
-        /// Gracefully closes and disposes the connection and channel if they exist.
-        /// </summary>
-        private async Task CleanupRabbitMqResourcesAsync()
-        {
-            if (_channel != null)
-            {
-                try
-                {
-                    if (_channel.IsOpen)
-                    {
-                        await _channel.CloseAsync();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error closing channel");
-                }
-                finally
-                {
-                    _channel.Dispose();
-                    _channel = null;
-                }
+                if (_channel.IsOpen)
+                    await _channel.CloseAsync();
             }
-
-            if (_connection != null)
+            catch (Exception ex)
             {
-                try
-                {
-                    if (_connection.IsOpen)
-                    {
-                        await _connection.CloseAsync();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error closing connection");
-                }
-                finally
-                {
-                    _connection.Dispose();
-                    _connection = null;
-                }
+                _logger.LogError(ex, "Error closing channel");
+            }
+            finally
+            {
+                _channel.Dispose();
+                _channel = null;
             }
         }
 
-        /// <summary>
-        /// Core consumer loop that connects to RabbitMQ, declares the notification queue,
-        /// and processes messages one at a time. Each message is displayed for 30 seconds
-        /// before being acknowledged so RabbitMQ does not deliver the next one prematurely.
-        /// Uses prefetch count of 1 to guarantee sequential, non-overlapping notifications.
-        /// </summary>
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        if (_connection != null)
         {
-            while (!stoppingToken.IsCancellationRequested)
+            try
             {
-                var config = _optionsMonitor.CurrentValue;
-                var factory = new ConnectionFactory()
+                if (_connection.IsOpen)
+                    await _connection.CloseAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error closing connection");
+            }
+            finally
+            {
+                _connection.Dispose();
+                _connection = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Core consumer loop that connects to RabbitMQ, declares the notification queue,
+    /// and processes messages one at a time. Each message is displayed for 30 seconds
+    /// before being acknowledged so RabbitMQ does not deliver the next one prematurely.
+    /// Uses prefetch count of 1 to guarantee sequential, non-overlapping notifications.
+    /// </summary>
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            RabbitMqOptions config = _optionsMonitor.CurrentValue;
+            ConnectionFactory factory = new()
+            {
+                HostName = config.HostName,
+                UserName = config.UserName,
+                Password = config.Password
+            };
+
+            try
+            {
+                _reconnectCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                CancellationToken token = _reconnectCts.Token;
+
+                await CleanupRabbitMqResourcesAsync();
+
+                _connection = await factory.CreateConnectionAsync(token);
+                _channel = await _connection.CreateChannelAsync(cancellationToken: token);
+
+                await _channel.QueueDeclareAsync(
+                    queue: config.QueueName,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: null,
+                    cancellationToken: token);
+
+                await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, cancellationToken: token);
+
+                AsyncEventingBasicConsumer consumer = new(_channel);
+                consumer.ReceivedAsync += async (model, ea) =>
                 {
-                    HostName = config.HostName,
-                    UserName = config.UserName,
-                    Password = config.Password
-                };
+                    try
+                    {
+                        var body = ea.Body.ToArray();
+                        string messageJson = Encoding.UTF8.GetString(body);
+                        NotificationMessage? notification = JsonSerializer.Deserialize<NotificationMessage>(messageJson, new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
 
-                try
-                {
-                    _reconnectCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-                    var token = _reconnectCts.Token;
-
-                    await CleanupRabbitMqResourcesAsync();
-
-                    _connection = await factory.CreateConnectionAsync(token);
-                    _channel = await _connection.CreateChannelAsync(cancellationToken: token);
-
-                    await _channel.QueueDeclareAsync(
-                        queue: config.QueueName,
-                        durable: true,
-                        exclusive: false,
-                        autoDelete: false,
-                        arguments: null,
-                        cancellationToken: token);
-
-                    await _channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, cancellationToken: token);
-
-                    var consumer = new AsyncEventingBasicConsumer(_channel);
-                    consumer.ReceivedAsync += async (model, ea) =>
+                        if (notification != null)
+                        {
+                            _messenger.Send(new ShowNotificationMessage(notification));
+                            await Task.Delay(TimeSpan.FromSeconds(30), token);
+                            _messenger.Send(new HideNotificationMessage());
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error processing message");
+                    }
+                    finally
                     {
                         try
                         {
-                            var body = ea.Body.ToArray();
-                            var messageJson = Encoding.UTF8.GetString(body);
-                            var notification = JsonSerializer.Deserialize<NotificationMessage>(messageJson, new JsonSerializerOptions
-                            {
-                                PropertyNameCaseInsensitive = true
-                            });
-
-                            if (notification != null)
-                            {
-                                _messenger.Send(new ShowNotificationMessage(notification));
-
-                                await Task.Delay(TimeSpan.FromSeconds(30), token);
-
-                                _messenger.Send(new HideNotificationMessage());
-                            }
+                            if (_channel != null && _channel.IsOpen)
+                                await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: token);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "Error processing message");
+                            _logger.LogError(ex, "Error sending BasicAck");
                         }
-                        finally
-                        {
-                            try
-                            {
-                                if (_channel != null && _channel.IsOpen)
-                                {
-                                    await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false, cancellationToken: token);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError(ex, "Error sending BasicAck");
-                            }
-                        }
-                    };
-
-                    await _channel.BasicConsumeAsync(
-                        queue: config.QueueName,
-                        autoAck: false,
-                        consumer: consumer,
-                        cancellationToken: token);
-
-                    while (_connection.IsOpen && !token.IsCancellationRequested)
-                    {
-                        await Task.Delay(1000, token);
                     }
-                }
-                catch (OperationCanceledException)
+                };
+
+                await _channel.BasicConsumeAsync(
+                    queue: config.QueueName,
+                    autoAck: false,
+                    consumer: consumer,
+                    cancellationToken: token);
+
+                while (_connection.IsOpen && !token.IsCancellationRequested)
                 {
-                    // Reconnection requested due to options change or application stop
+                    await Task.Delay(1000, token);
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "RabbitMQ connection failed. Retrying in 5 seconds...");
-                    try { await Task.Delay(5000, stoppingToken); } catch { }
-                }
-                finally
-                {
-                    _reconnectCts?.Dispose();
-                    _reconnectCts = null;
-                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Reconnection requested due to options change or application stop
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "RabbitMQ connection failed. Retrying in 5 seconds...");
+                try { await Task.Delay(5000, stoppingToken); } catch { }
+            }
+            finally
+            {
+                _reconnectCts?.Dispose();
+                _reconnectCts = null;
             }
         }
     }

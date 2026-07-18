@@ -1,8 +1,7 @@
-using System.Collections.Generic;
-using DeskDuck.Features.Chat;
-using DeskDuck.Features.Messaging;
+using DeskDuck.Core.Features.Chat;
+using DeskDuck.Core.Features.Messaging;
 
-namespace DeskDuck.Models;
+namespace DeskDuck.Core.Models;
 
 /// <summary>
 /// Root configuration model that maps to the top-level structure of appsettings.json.

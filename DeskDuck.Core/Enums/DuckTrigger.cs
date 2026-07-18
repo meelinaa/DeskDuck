@@ -1,4 +1,4 @@
-namespace DeskDuck.Enums;
+namespace DeskDuck.Core.Enums;
 
 /// <summary>
 /// Triggers used by the DuckStateMachine to transition between states.
