@@ -20,6 +20,13 @@ namespace DeskDuck.Core.Features.Weather
         private readonly ILogger<WeatherPublisherService> _logger;
         private CancellationTokenSource? _delayCts;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="WeatherPublisherService"/> class.
+        /// </summary>
+        /// <param name="optionsMonitor">Options monitor for dynamic configuration updates.</param>
+        /// <param name="publisher">The RabbitMQ publisher used to send weather updates.</param>
+        /// <param name="httpClientFactory">Factory to create HTTP clients for API requests.</param>
+        /// <param name="logger">Logger for recording service activity and errors.</param>
         public WeatherPublisherService(
             IOptionsMonitor<WeatherPublisherOptions> optionsMonitor,
             IRabbitMqPublisher publisher,

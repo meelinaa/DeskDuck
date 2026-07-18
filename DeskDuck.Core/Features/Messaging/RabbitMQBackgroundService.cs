@@ -181,7 +181,11 @@ public partial class RabbitMQBackgroundService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "RabbitMQ connection failed. Retrying in 5 seconds...");
-                try { await Task.Delay(5000, stoppingToken); } catch { }
+                try { await Task.Delay(5000, stoppingToken); } 
+                catch 
+                {
+                    // Ignore cancellation 
+                }
             }
             finally
             {

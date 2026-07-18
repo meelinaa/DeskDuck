@@ -51,11 +51,22 @@ public static class Win32WindowHelper
     private const int WS_EX_TOOLWINDOW = 0x00000080;
     private const int WS_EX_NOACTIVATE = 0x08000000;
 
+    /// <summary>Identifier for the global hotkey used by DeskDuck.</summary>
     public const int HOTKEY_ID = 1337;
+
+    /// <summary>Alt key modifier flag for global hotkeys.</summary>
     public const uint MOD_ALT = 0x0001;
+
+    /// <summary>Control key modifier flag for global hotkeys.</summary>
     public const uint MOD_CONTROL = 0x0002;
+
+    /// <summary>Shift key modifier flag for global hotkeys.</summary>
     public const uint MOD_SHIFT = 0x0004;
+
+    /// <summary>Virtual key code for the 'D' key.</summary>
     public const uint VK_D = 0x44;
+
+    /// <summary>Windows message ID for hotkey triggers.</summary>
     public const uint WM_HOTKEY = 0x0312;
 
     #endregion
@@ -68,7 +79,10 @@ public static class Win32WindowHelper
     [StructLayout(LayoutKind.Sequential)]
     public struct PointStruct
     {
+        /// <summary>The X coordinate.</summary>
         public int X;
+
+        /// <summary>The Y coordinate.</summary>
         public int Y;
     }
 
@@ -104,8 +118,13 @@ public static class Win32WindowHelper
     [StructLayout(LayoutKind.Sequential)]
     public struct FILETIME
     {
+        /// <summary>The low-order part of the file time.</summary>
         public uint dwLowDateTime;
+
+        /// <summary>The high-order part of the file time.</summary>
         public uint dwHighDateTime;
+
+        /// <summary>Converts the file time parts into a single unsigned 64-bit integer.</summary>
         public readonly ulong ToUInt64() => ((ulong)dwHighDateTime << 32) | dwLowDateTime;
     }
 

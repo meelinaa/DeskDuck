@@ -104,7 +104,7 @@ public partial class RabbitMqPublisher : IRabbitMqPublisher, IDisposable
     /// <summary>
     /// Serializes a notification and publishes it to the <c>deskduck.notifications</c> queue.
     /// Automatically establishes the RabbitMQ connection if it is not yet open.
-    /// Errors are logged via <see cref="Debug.WriteLine"/> and do not propagate to callers
+    /// Errors are logged via Serilog and do not propagate to callers
     /// so that a broker outage never crashes the publisher service.
     /// </summary>
     public async Task PublishAsync(string source, string severity, string text, string? link = null, CancellationToken cancellationToken = default)

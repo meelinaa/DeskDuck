@@ -14,8 +14,18 @@ using Polly.Extensions.Http;
 
 namespace DeskDuck.Core.Core;
 
+/// <summary>
+/// Provides extension methods for <see cref="IServiceCollection"/> to register DeskDuck specific services.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers all required features, options, and services for the DeskDuck application into the dependency injection container.
+    /// This includes background services, ViewModels, external clients, and messaging infrastructure.
+    /// </summary>
+    /// <param name="services">The service collection to add the features to.</param>
+    /// <param name="configuration">The application configuration used to bind options.</param>
+    /// <returns>The updated <see cref="IServiceCollection"/>.</returns>
     public static IServiceCollection AddDeskDuckFeatures(this IServiceCollection services, IConfiguration configuration)
     {
         // Configure Options
@@ -59,6 +69,11 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Creates a Polly retry policy for HTTP clients to automatically retry failed requests.
+    /// This ensures robustness against transient network errors when communicating with external APIs.
+    /// </summary>
+    /// <returns>An asynchronous retry policy for HTTP responses.</returns>
     private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
     {
         return HttpPolicyExtensions

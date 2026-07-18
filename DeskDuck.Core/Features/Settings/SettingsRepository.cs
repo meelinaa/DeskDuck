@@ -13,6 +13,7 @@ public class SettingsRepository(ILogger<SettingsRepository> logger) : ISettingsR
 {
     private readonly ILogger<SettingsRepository> _logger = logger;
 
+    /// <inheritdoc/>
     public string GetConfigPath()
     {
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -36,6 +37,7 @@ public class SettingsRepository(ILogger<SettingsRepository> logger) : ISettingsR
         return userConfig;
     }
 
+    /// <inheritdoc/>
     public AppSettingsModel LoadSettings()
     {
         try
@@ -58,6 +60,7 @@ public class SettingsRepository(ILogger<SettingsRepository> logger) : ISettingsR
         return new AppSettingsModel();
     }
 
+    /// <inheritdoc/>
     public void SaveSettings(AppSettingsModel settings)
     {
         try

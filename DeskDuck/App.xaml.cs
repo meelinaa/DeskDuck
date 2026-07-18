@@ -1,9 +1,9 @@
-using DeskDuck.Models;
+using DeskDuck.Core.Models;
 using DeskDuck.Core.Core;
 using DeskDuck.Features.Shell;
-using DeskDuck.Features.Chat;
-using DeskDuck.Features.Weather;
-using DeskDuck.Features.SystemMonitor;
+using DeskDuck.Core.Features.Chat;
+using DeskDuck.Core.Features.Weather;
+using DeskDuck.Core.Features.SystemMonitor;
 using DeskDuck.Core.Features.Messaging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +25,9 @@ namespace DeskDuck
     {
         private Window? _window;
 
+        /// <summary>
+        /// Gets the configured application host that manages dependency injection, logging, and background services.
+        /// </summary>
         public IHost Host { get; }
 
         /// <summary>

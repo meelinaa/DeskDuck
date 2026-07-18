@@ -19,18 +19,18 @@ public partial class ChatViewModel : ObservableObject
     public partial bool IsTyping { get; set; }
 
     [ObservableProperty]
-    public partial string SelectedModel { get; set; } = string.Empty;
+    public partial string SelectedModel { get; set; }
 
-    /// <summary>The ordered list of chat messages displayed in the UI.</summary>
+    /// <summary>Gets the ordered list of chat messages displayed in the UI.</summary>
     public ObservableCollection<ChatMessage> Messages { get; } = [];
 
-    /// <summary>The list of locally available Ollama model names for the model picker.</summary>
+    /// <summary>Gets the list of locally available Ollama model names for the model picker.</summary>
     public ObservableCollection<string> Models { get; } = [];
 
 
 
     /// <summary>
-    /// Derived visibility value for the typing indicator, computed from <see cref="IsTyping"/>.
+    /// Gets derived visibility value for the typing indicator, computed from <see cref="IsTyping"/>.
     /// </summary>
     public Visibility TypingIndicatorVisibility => IsTyping ? Visibility.Visible : Visibility.Collapsed;
 
@@ -110,5 +110,4 @@ public partial class ChatViewModel : ObservableObject
 
         IsTyping = false;
     }
-
 }

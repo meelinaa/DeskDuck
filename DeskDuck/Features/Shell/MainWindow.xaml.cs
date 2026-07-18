@@ -24,8 +24,20 @@ public sealed partial class MainWindow : Window
     private readonly ILogger<MainWindow> _logger;
     private readonly IWindowService _windowService;
 
+    /// <summary>
+    /// Gets the view model bound to this window.
+    /// </summary>
     public MainViewModel MainViewModel { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MainWindow"/> class.
+    /// </summary>
+    /// <param name="movementManager">The manager controlling the duck's movement logic.</param>
+    /// <param name="windowManager">The manager for opening auxiliary windows.</param>
+    /// <param name="generalConfig">The configuration options for general settings.</param>
+    /// <param name="logger">The logger for this window.</param>
+    /// <param name="windowService">The window service for Win32 API interactions.</param>
+    /// <param name="messenger">The messenger for sending and receiving commands.</param>
     public MainWindow(
         IDuckMovementManager movementManager,
         IDuckWindowManager windowManager,

@@ -15,6 +15,9 @@ public class DuckStateMachine
     /// </summary>
     public event Action<DuckState>? OnStateChanged;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DuckStateMachine"/> class and configures state transitions.
+    /// </summary>
     public DuckStateMachine()
     {
         _machine = new StateMachine<DuckState, DuckTrigger>(DuckState.Waiting);

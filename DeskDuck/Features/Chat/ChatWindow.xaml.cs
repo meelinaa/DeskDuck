@@ -16,7 +16,7 @@ namespace DeskDuck.Features.Chat;
 public sealed partial class ChatWindow : Window
 {
     /// <summary>The view model that drives the chat UI.</summary>
-    public global::DeskDuck.Core.Features.Chat.ChatViewModel ViewModel { get; }
+    public ChatViewModel ViewModel { get; }
 
     /// <summary>
     /// Initializes the chat window: sets the title, fixes the size, keeps it always on top,

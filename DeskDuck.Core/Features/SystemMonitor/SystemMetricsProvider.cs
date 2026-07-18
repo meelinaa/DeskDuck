@@ -8,6 +8,7 @@ public class SystemMetricsProvider(ILogger<SystemMetricsProvider> logger) : ISys
 {
     private readonly ILogger<SystemMetricsProvider> _logger = logger;
 
+    /// <inheritdoc/>
     public double? GetBatteryPercent()
     {
         try
@@ -29,6 +30,7 @@ public class SystemMetricsProvider(ILogger<SystemMetricsProvider> logger) : ISys
         return null;
     }
 
+    /// <inheritdoc/>
     public async Task<double?> GetCpuUsageAsync(CancellationToken cancellationToken)
     {
         try
@@ -58,6 +60,7 @@ public class SystemMetricsProvider(ILogger<SystemMetricsProvider> logger) : ISys
         return null;
     }
 
+    /// <inheritdoc/>
     public double? GetRamUsage()
     {
         try

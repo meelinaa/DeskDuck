@@ -43,11 +43,13 @@ namespace DeskDuck.Core.Manager
         /// Temporarily halts the movement timer without resetting the current path.
         /// Used during drag operations so the duck does not fight user input.
         /// </summary>
+        /// <inheritdoc />
         public void Pause()
         {
             _stateMachine.Fire(DuckTrigger.Hold);
         }
 
+        /// <inheritdoc />
         public void Resume()
         {
             if (_appWindow == null) return;
@@ -57,11 +59,13 @@ namespace DeskDuck.Core.Manager
             _stateMachine.Fire(DuckTrigger.Release);
         }
 
+        /// <inheritdoc />
         public void Stop()
         {
             _stateMachine.Fire(DuckTrigger.Stop);
         }
 
+        /// <inheritdoc />
         public void Start()
         {
             if (_appWindow == null) return;
@@ -76,6 +80,11 @@ namespace DeskDuck.Core.Manager
             PositionChanged?.Invoke((int)_currentX, (int)_currentY);
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DuckMovementManager"/> class.
+        /// </summary>
+        /// <param name="config">Configuration options for duck movement logic.</param>
+        /// <param name="logger">Logger for recording state transitions and errors.</param>
         public DuckMovementManager(IOptions<DuckConfig> config, ILogger<DuckMovementManager> logger)
         {
             _config = config.Value;
@@ -84,6 +93,7 @@ namespace DeskDuck.Core.Manager
             _stateMachine.OnStateChanged += OnStateMachineTransitioned;
         }
 
+        /// <inheritdoc />
         public void Initialize(AppWindow appWindow, DispatcherQueue dispatcherQueue)
         {
             _appWindow = appWindow;
@@ -202,6 +212,7 @@ namespace DeskDuck.Core.Manager
             }
         }
 
+        /// <inheritdoc />
         public void TeleportTo(double x, double y)
         {
             _currentX = x;

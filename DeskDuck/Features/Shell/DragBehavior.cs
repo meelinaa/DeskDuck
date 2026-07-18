@@ -10,8 +10,15 @@ using Windows.Graphics;
 
 namespace DeskDuck.Features.Shell
 {
+    /// <summary>
+    /// Provides attached properties to enable dragging of UI elements, specifically
+    /// intended for dragging the duck overlay window across the screen.
+    /// </summary>
     public static class DragBehavior
     {
+        /// <summary>
+        /// Identifies the IsDraggable attached property.
+        /// </summary>
         public static readonly DependencyProperty IsDraggableProperty =
             DependencyProperty.RegisterAttached(
                 "IsDraggable",
@@ -19,7 +26,18 @@ namespace DeskDuck.Features.Shell
                 typeof(DragBehavior),
                 new PropertyMetadata(false, OnIsDraggableChanged));
 
+        /// <summary>
+        /// Gets the value of the IsDraggable attached property for a given dependency object.
+        /// </summary>
+        /// <param name="obj">The dependency object to query.</param>
+        /// <returns>True if the element is draggable; otherwise, false.</returns>
         public static bool GetIsDraggable(DependencyObject obj) => (bool)obj.GetValue(IsDraggableProperty);
+
+        /// <summary>
+        /// Sets the value of the IsDraggable attached property for a given dependency object.
+        /// </summary>
+        /// <param name="obj">The dependency object to modify.</param>
+        /// <param name="value">True to enable dragging; otherwise, false.</param>
         public static void SetIsDraggable(DependencyObject obj, bool value) => obj.SetValue(IsDraggableProperty, value);
 
         private static bool _isDragging = false;

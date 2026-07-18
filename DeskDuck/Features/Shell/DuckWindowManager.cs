@@ -12,6 +12,10 @@ using DeskDuck.Core.Manager;
 
 namespace DeskDuck.Features.Shell
 {
+    /// <summary>
+    /// Concrete implementation of <see cref="IDuckWindowManager"/> that manages
+    /// the lifecycle and positioning of the chat and settings windows.
+    /// </summary>
     public class DuckWindowManager : IDuckWindowManager
     {
         private AppWindow? _duckAppWindow;
@@ -25,6 +29,12 @@ namespace DeskDuck.Features.Shell
         private SettingsWindow? _settingsWindow;
         private bool _isSettingsActive = false;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DuckWindowManager"/> class.
+        /// </summary>
+        /// <param name="serviceProvider">Provider for resolving ViewModels and dependencies.</param>
+        /// <param name="movementManager">The movement manager to pause/resume the duck.</param>
+        /// <param name="loggerFactory">Factory for creating loggers.</param>
         public DuckWindowManager(
             IServiceProvider serviceProvider,
             IDuckMovementManager movementManager,
@@ -35,11 +45,13 @@ namespace DeskDuck.Features.Shell
             _loggerFactory = loggerFactory;
         }
 
+        /// <inheritdoc />
         public void Initialize(AppWindow duckAppWindow)
         {
             _duckAppWindow = duckAppWindow;
         }
 
+        /// <inheritdoc />
         public void OpenChatWindow()
         {
             if (_duckAppWindow == null) return;
@@ -84,6 +96,7 @@ namespace DeskDuck.Features.Shell
             }
         }
 
+        /// <inheritdoc />
         public void OpenSettingsWindow()
         {
             if (_duckAppWindow == null) return;
@@ -139,6 +152,7 @@ namespace DeskDuck.Features.Shell
             _movementManager.TeleportTo(newX, newY);
         }
 
+        /// <inheritdoc />
         public void CloseAll()
         {
             _chatWindow?.Close();
