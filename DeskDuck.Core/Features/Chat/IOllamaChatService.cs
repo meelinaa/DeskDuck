@@ -13,11 +13,11 @@ public interface IOllamaChatService
     Task<IEnumerable<string>> GetLocalModelsAsync();
 
     /// <summary>
-    /// Sends the full conversation history to the model and returns the assistant's reply.
+    /// Sends the full conversation history to the model and streams the assistant's reply chunk by chunk.
     /// </summary>
     /// <param name="history">The ordered chat history including the latest user message.</param>
     /// <param name="modelName">
     /// Optional model override for this call. Uses the configured default when empty.
     /// </param>
-    Task<string> AskAsync(IEnumerable<ChatMessage> history, string modelName);
+    IAsyncEnumerable<string> AskStreamAsync(IEnumerable<ChatMessage> history, string modelName);
 }

@@ -92,22 +92,35 @@ public partial class ChatViewModel : ObservableObject
         string userMessageText = InputText;
         InputText = string.Empty;
 
+        // Copy current messages to pass to AI history (excluding the new empty one we're about to add)
+        var historyForAi = Messages.ToList();
+
         Messages.Add(new ChatMessage
         {
             Text = userMessageText,
             IsUser = true
         });
+        historyForAi.Add(Messages.Last());
 
         IsTyping = true;
 
-        string aiResponse = await _aiService.AskAsync(Messages, SelectedModel);
-
-        Messages.Add(new ChatMessage
+        ChatMessage aiMessage = new()
         {
-            Text = aiResponse,
+            Text = "",
             IsUser = false
-        });
+        };
+        Messages.Add(aiMessage);
 
-        IsTyping = false;
+        try
+        {
+            await foreach (var chunk in _aiService.AskStreamAsync(historyForAi, SelectedModel))
+            {
+                aiMessage.Text += chunk;
+            }
+        }
+        finally
+        {
+            IsTyping = false;
+        }
     }
 }

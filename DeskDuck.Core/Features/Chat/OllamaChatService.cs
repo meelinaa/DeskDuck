@@ -87,14 +87,16 @@ public class OllamaChatService : IOllamaChatService
     }
 
     /// <summary>
-    /// Sends the full conversation history to Ollama and returns the assistant's reply.
-    /// The configured system prompt is prepended as the first message so the model always
-    /// receives its persona instructions. If <paramref name="modelName"/> is provided and
+    /// Sends the full conversation history to the model and streams the assistant's reply chunk by chunk.
+    /// Uses the globally configured prompt as a system message. If the modelName is
     /// non-empty it overrides the default configured model for this call only.
     /// Returns a user-friendly error string instead of throwing on failure.
     /// </summary>
-    public async Task<string> AskAsync(IEnumerable<ChatMessage> history, string modelName)
+    public async IAsyncEnumerable<string> AskStreamAsync(IEnumerable<ChatMessage> history, string modelName)
     {
+        IAsyncEnumerable<ChatResponseStream?>? stream = null;
+        string? errorMessage = null;
+
         try
         {
             if (_client == null)
@@ -124,30 +126,58 @@ public class OllamaChatService : IOllamaChatService
             {
                 Model = activeModel,
                 Messages = messages,
-                Stream = false
+                Stream = true
             };
 
-            StringBuilder responseBuilder = new();
-            await foreach (ChatResponseStream? response in _client.ChatAsync(chatRequest))
-            {
-                if (response?.Message?.Content != null)
-                {
-                    responseBuilder.Append(response.Message.Content);
-                }
-            }
-
-            string responseContent = responseBuilder.ToString();
-            if (string.IsNullOrWhiteSpace(responseContent))
-            {
-                return "Quack... Ich habe keine Antwort erhalten.";
-            }
-
-            return responseContent;
+            stream = _client.ChatAsync(chatRequest);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Ollama error");
-            return "Entschuldigung, ich konnte nicht mit meinem Gehirn (Ollama) verbinden.";
+            _logger.LogError(ex, "Ollama init error");
+            errorMessage = "Entschuldigung, ich konnte nicht mit meinem Gehirn (Ollama) verbinden.";
+        }
+
+        if (errorMessage != null)
+        {
+            yield return errorMessage;
+            yield break;
+        }
+
+        bool hasContent = false;
+        IAsyncEnumerator<ChatResponseStream?> enumerator = stream!.GetAsyncEnumerator();
+
+        while (true)
+        {
+            bool moved = false;
+            try
+            {
+                moved = await enumerator.MoveNextAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ollama stream error");
+                errorMessage = "\n[Fehler bei der Verbindung]";
+            }
+
+            if (errorMessage != null)
+            {
+                yield return errorMessage;
+                break;
+            }
+
+            if (!moved) break;
+
+            ChatResponseStream? response = enumerator.Current;
+            if (response?.Message?.Content != null)
+            {
+                hasContent = true;
+                yield return response.Message.Content;
+            }
+        }
+
+        if (!hasContent && errorMessage == null)
+        {
+            yield return "Quack... Ich habe keine Antwort erhalten.";
         }
     }
 }

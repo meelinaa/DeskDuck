@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
@@ -10,10 +11,11 @@ namespace DeskDuck.Core.Features.Chat;
 /// style user messages (right-aligned, blue) and AI messages (left-aligned, gray)
 /// without requiring a converter or code-behind logic.
 /// </summary>
-public class ChatMessage
+public partial class ChatMessage : ObservableObject
 {
     /// <summary>Gets or sets the text content of this message.</summary>
-    public string Text { get; set; } = string.Empty;
+    [ObservableProperty]
+    public partial string Text { get; set; } = string.Empty;
 
     /// <summary><c>Gets or sets a value indicating whether true</c> if this message was sent by the user; <c>false</c> for AI responses.</summary>
     public bool IsUser { get; set; }

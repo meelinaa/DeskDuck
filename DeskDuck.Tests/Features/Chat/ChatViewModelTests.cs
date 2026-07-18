@@ -54,7 +54,7 @@ public class ChatViewModelTests
 
         // Assert
         Assert.Equal(messageCountBefore, vm.Messages.Count);
-        _mockAiService.Verify(s => s.AskAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<string>()), Times.Never);
+        _mockAiService.Verify(s => s.AskStreamAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
@@ -62,8 +62,8 @@ public class ChatViewModelTests
     {
         // Arrange
         _mockAiService
-            .Setup(s => s.AskAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<string>()))
-            .ReturnsAsync("Quack! Ich bin die KI-Antwort.");
+            .Setup(s => s.AskStreamAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<string>()))
+            .Returns(GetMockStream("Quack! Ich bin die KI-Antwort."));
 
         ChatViewModel vm = new(_mockAiService.Object)
         {
@@ -86,8 +86,8 @@ public class ChatViewModelTests
     {
         // Arrange
         _mockAiService
-            .Setup(s => s.AskAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<string>()))
-            .ReturnsAsync("Antwort");
+            .Setup(s => s.AskStreamAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<string>()))
+            .Returns(GetMockStream("Antwort"));
 
         ChatViewModel vm = new(_mockAiService.Object)
         {
@@ -106,12 +106,8 @@ public class ChatViewModelTests
     {
         // Arrange
         _mockAiService
-            .Setup(s => s.AskAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<string>()))
-            .Returns(async () =>
-            {
-                await Task.Yield();
-                return "Antwort";
-            });
+            .Setup(s => s.AskStreamAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<string>()))
+            .Returns(GetMockDelayedStream("Antwort"));
 
         ChatViewModel vm = new(_mockAiService.Object);
 
@@ -170,4 +166,17 @@ public class ChatViewModelTests
         Assert.Single(vm.Models);
         Assert.Contains("Keine Modelle", vm.SelectedModel);
     }
+
+#pragma warning disable CS1998 // Bei der asynchronen Methode fehlen "await"-Operatoren. Die Methode wird synchron ausgeführt.
+    private async IAsyncEnumerable<string> GetMockStream(string text)
+    {
+        yield return text;
+    }
+
+    private async IAsyncEnumerable<string> GetMockDelayedStream(string text)
+    {
+        await Task.Yield();
+        yield return text;
+    }
+#pragma warning restore CS1998 // Bei der asynchronen Methode fehlen "await"-Operatoren. Die Methode wird synchron ausgeführt.
 }
