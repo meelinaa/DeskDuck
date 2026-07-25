@@ -40,6 +40,7 @@ public partial class RabbitMQBackgroundService : BackgroundService
             _reconnectCts?.Cancel();
         });
     }
+
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         await CleanupRabbitMqResourcesAsync();
@@ -139,11 +140,7 @@ public partial class RabbitMQBackgroundService : BackgroundService
                         });
 
                         if (notification != null)
-                        {
                             _messenger.Send(new ShowNotificationMessage(notification));
-                            await Task.Delay(TimeSpan.FromSeconds(30), token);
-                            _messenger.Send(new HideNotificationMessage());
-                        }
                     }
                     catch (Exception ex)
                     {
@@ -181,7 +178,10 @@ public partial class RabbitMQBackgroundService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "RabbitMQ connection failed. Retrying in 5 seconds...");
-                try { await Task.Delay(5000, stoppingToken); } 
+                try 
+                {
+                    await Task.Delay(5000, stoppingToken); 
+                } 
                 catch 
                 {
                     // Ignore cancellation 

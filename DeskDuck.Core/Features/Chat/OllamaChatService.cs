@@ -3,7 +3,6 @@ using Microsoft.Extensions.Options;
 using OllamaSharp;
 using OllamaSharp.Models;
 using OllamaSharp.Models.Chat;
-using System.Text;
 
 namespace DeskDuck.Core.Features.Chat;
 
@@ -74,8 +73,10 @@ public class OllamaChatService : IOllamaChatService
     {
         try
         {
-            if (_client == null) InitClient();
-            if (_client == null) return [];
+            if (_client == null)
+                InitClient();
+            if (_client == null)
+                return [];
 
             IEnumerable<Model> models = await _client.ListLocalModelsAsync();
             return models.Select(m => m.Name);
@@ -100,14 +101,10 @@ public class OllamaChatService : IOllamaChatService
         try
         {
             if (_client == null)
-            {
                 InitClient();
-            }
 
             if (_client == null)
-            {
                 throw new InvalidOperationException("Ollama Client could not be initialized.");
-            }
 
             OllamaOptions config = _optionsMonitor.CurrentValue;
             string activeModel = string.IsNullOrWhiteSpace(modelName) ? (string.IsNullOrWhiteSpace(config.Model) ? "llama3.2:latest" : config.Model) : modelName;
@@ -165,7 +162,8 @@ public class OllamaChatService : IOllamaChatService
                 break;
             }
 
-            if (!moved) break;
+            if (!moved)
+                break;
 
             ChatResponseStream? response = enumerator.Current;
             if (response?.Message?.Content != null)
@@ -176,8 +174,6 @@ public class OllamaChatService : IOllamaChatService
         }
 
         if (!hasContent && errorMessage == null)
-        {
             yield return "Quack... Ich habe keine Antwort erhalten.";
-        }
     }
 }

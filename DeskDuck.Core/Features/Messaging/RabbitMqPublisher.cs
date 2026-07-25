@@ -2,7 +2,6 @@ using DeskDuck.Core.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
-using System.Diagnostics;
 using System.Text.Json;
 
 namespace DeskDuck.Core.Features.Messaging;
@@ -37,8 +36,24 @@ public partial class RabbitMqPublisher : IRabbitMqPublisher, IDisposable
             await _connectionSemaphore.WaitAsync();
             try
             {
-                if (_channel != null) { try { await _channel.CloseAsync(); } catch { } _channel = null; }
-                if (_connection != null) { try { await _connection.CloseAsync(); } catch { } _connection = null; }
+                if (_channel != null)
+                {
+                    try
+                    {
+                        await _channel.CloseAsync();
+                    }
+                    catch { }
+                    _channel = null;
+                }
+                if (_connection != null)
+                {
+                    try
+                    {
+                        await _connection.CloseAsync();
+                    }
+                    catch { }
+                    _connection = null;
+                }
             }
             finally
             {
@@ -54,21 +69,31 @@ public partial class RabbitMqPublisher : IRabbitMqPublisher, IDisposable
     /// </summary>
     private async Task EnsureConnectedAsync(CancellationToken cancellationToken)
     {
-        if (_connection != null && _connection.IsOpen && _channel != null && _channel.IsOpen) return;
+        if (_connection != null && _connection.IsOpen && _channel != null && _channel.IsOpen)
+            return;
 
         await _connectionSemaphore.WaitAsync(cancellationToken);
         try
         {
-            if (_connection != null && _connection.IsOpen && _channel != null && _channel.IsOpen) return;
+            if (_connection != null && _connection.IsOpen && _channel != null && _channel.IsOpen)
+                return;
 
             if (_channel != null)
             {
-                try { await _channel.CloseAsync(cancellationToken: cancellationToken); } catch { }
+                try
+                {
+                    await _channel.CloseAsync(cancellationToken: cancellationToken);
+                }
+                catch { }
                 _channel = null;
             }
             if (_connection != null)
             {
-                try { await _connection.CloseAsync(cancellationToken: cancellationToken); } catch { }
+                try
+                {
+                    await _connection.CloseAsync(cancellationToken: cancellationToken);
+                }
+                catch { }
                 _connection = null;
             }
 

@@ -3,17 +3,14 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using DeskDuck.Core.Enums;
 using DeskDuck.Core.Messages;
-using Microsoft.UI;
-using Microsoft.UI.Dispatching;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
 
 namespace DeskDuck.Core.Features.Shell;
 
 /// <summary>
 /// View model for the main overlay window. Exposes bindable properties for the
 /// duck animation URI, notification content, notification visibility, coordinate
-/// display, and the title bar visibility of notifications.
+/// display, and severity-based color of notification text.
+/// All properties use framework-agnostic types so this class has zero WinUI dependencies.
 /// </summary>
 public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificationMessage>, IRecipient<HideNotificationMessage>
 {
@@ -37,21 +34,26 @@ public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificati
 
     /// <summary>
     /// Gets or sets a value indicating whether the notification speech bubble is visible.
+    /// Bound via BooleanToVisibilityConverter in the UI layer.
     /// </summary>
     [ObservableProperty]
-    public partial Visibility NotificationVisibility { get; set; } = Visibility.Collapsed;
+    public partial bool IsNotificationVisible { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the notification title block is visible.
+    /// True when <see cref="NotificationTitle"/> is non-empty.
+    /// Bound via BooleanToVisibilityConverter in the UI layer.
     /// </summary>
     [ObservableProperty]
-    public partial Visibility TitleVisibility { get; set; } = Visibility.Collapsed;
+    public partial bool IsTitleVisible { get; set; }
 
     /// <summary>
-    /// Gets or sets the brush used for the notification text (color changes based on severity).
+    /// Gets or sets the hex color string for the notification title text.
+    /// Maps the severity level ("Warning" → dark red, "Info" → dark blue, else black).
+    /// The UI layer creates a SolidColorBrush from this value.
     /// </summary>
     [ObservableProperty]
-    public partial Brush NotificationTextBrush { get; set; } = new SolidColorBrush(Colors.Black);
+    public partial string NotificationColorHex { get; set; } = "#1A1A1A";
 
     /// <summary>
     /// Gets or sets the formatted text displaying the current X and Y coordinates.
@@ -61,23 +63,27 @@ public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificati
 
     /// <summary>
     /// Gets or sets a value indicating whether the coordinates overlay is visible.
+    /// Bound via BooleanToVisibilityConverter in the UI layer.
     /// </summary>
     [ObservableProperty]
-    public partial Visibility CoordinatesVisibility { get; set; } = Visibility.Visible;
+    public partial bool AreCoordinatesVisible { get; set; } = true;
 
-    private readonly DispatcherQueue _dispatcherQueue;
     private readonly IMessenger _messenger;
     private readonly IDuckWindowManager _windowManager;
 
     /// <summary>
+    /// CancellationTokenSource that controls the 30-second auto-hide timer for the
+    /// notification bubble. Cancelled and replaced whenever a new notification arrives.
+    /// </summary>
+    private CancellationTokenSource? _notificationHideCts;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
     /// </summary>
-    /// <param name="dispatcherQueue">The UI thread dispatcher queue.</param>
     /// <param name="messenger">The messenger for receiving notifications.</param>
     /// <param name="windowManager">The window manager for handling auxiliary windows.</param>
-    public MainViewModel(DispatcherQueue dispatcherQueue, IMessenger messenger, IDuckWindowManager windowManager)
+    public MainViewModel(IMessenger messenger, IDuckWindowManager windowManager)
     {
-        _dispatcherQueue = dispatcherQueue;
         _messenger = messenger;
         _windowManager = windowManager;
         _messenger.RegisterAll(this);
@@ -107,8 +113,7 @@ public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificati
     [RelayCommand]
     private void Exit()
     {
-        _windowManager.CloseAll();
-        Application.Current.Exit();
+        _windowManager.Shutdown();
     }
 
     /// <summary>
@@ -117,21 +122,13 @@ public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificati
     /// <param name="state">The new state of the duck.</param>
     public void OnDuckStateChanged(DuckState state)
     {
-        _dispatcherQueue.TryEnqueue(() =>
+        DuckImageUri = state switch
         {
-            DuckImageUri = state switch
-            {
-                DuckState.WalkingLeft => "ms-appx:///Assets/Duck/duck-walking-to-left.gif",
-                DuckState.WalkingRight => "ms-appx:///Assets/Duck/duck-walking-to-right.gif",
-                DuckState.Held => "ms-appx:///Assets/Duck/pokeball.gif",
-                _ => "ms-appx:///Assets/Duck/duck-sitting.gif"
-            };
-        });
-    }
-
-    partial void OnNotificationTitleChanged(string value)
-    {
-        TitleVisibility = string.IsNullOrWhiteSpace(value) ? Visibility.Collapsed : Visibility.Visible;
+            DuckState.WalkingLeft => "ms-appx:///Assets/Duck/duck-walking-to-left.gif",
+            DuckState.WalkingRight => "ms-appx:///Assets/Duck/duck-walking-to-right.gif",
+            DuckState.Held => "ms-appx:///Assets/Duck/pokeball.gif",
+            _ => "ms-appx:///Assets/Duck/duck-sitting.gif"
+        };
     }
 
     /// <summary>
@@ -141,39 +138,69 @@ public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificati
     /// <param name="y">The new Y coordinate.</param>
     public void OnDuckPositionChanged(int x, int y)
     {
-        _dispatcherQueue.TryEnqueue(() =>
-        {
-            CoordinatesText = $"X: {x}, Y: {y}";
-        });
+        CoordinatesText = $"X: {x}, Y: {y}";
+    }
+
+    partial void OnNotificationTitleChanged(string value)
+    {
+        IsTitleVisible = !string.IsNullOrWhiteSpace(value);
     }
 
     /// <inheritdoc/>
     public void Receive(ShowNotificationMessage message)
     {
-        _dispatcherQueue.TryEnqueue(() =>
+        NotificationTitle = message.Notification.Title ?? string.Empty;
+        NotificationMessage = message.Notification.Message;
+
+        // Map severity to a hex color — no WinUI Brush required in the Core layer.
+        NotificationColorHex = (message.Notification.Severity?.ToLowerInvariant()) switch
         {
-            NotificationTitle = message.Notification.Title ?? string.Empty;
-            NotificationMessage = message.Notification.Message;
+            "warning" => "#8B0000",  // DarkRed
+            "info"    => "#00008B",  // DarkBlue
+            _         => "#1A1A1A"
+        };
 
-            // Map severity to colors
-            var severity = message.Notification.Severity?.ToLowerInvariant() ?? "";
-            NotificationTextBrush = severity switch
-            {
-                "warning" => new SolidColorBrush(Colors.DarkRed),
-                "info" => new SolidColorBrush(Colors.DarkBlue),
-                _ => new SolidColorBrush(Colors.Black)
-            };
+        IsNotificationVisible = true;
 
-            NotificationVisibility = Visibility.Visible;
-        });
+        // Cancel any running hide-timer from a previous notification
+        _notificationHideCts?.Cancel();
+        _notificationHideCts?.Dispose();
+        _notificationHideCts = new CancellationTokenSource();
+        CancellationToken token = _notificationHideCts.Token;
+
+        // Start the 30-second auto-hide timer without blocking the caller
+        _ = HideAfterDelayAsync(TimeSpan.FromSeconds(30), token);
     }
 
     /// <inheritdoc/>
-    public void Receive(HideNotificationMessage message)
+    public void Receive(HideNotificationMessage message) => HideNotification();
+
+    /// <summary>
+    /// Waits for <paramref name="delay"/> and then hides the notification bubble,
+    /// unless the token is cancelled by a newer notification arriving first.
+    /// </summary>
+    /// <param name="delay">How long to wait before hiding the notification.</param>
+    /// <param name="cancellationToken">Token that cancels this timer when a new notification arrives.</param>
+    private async Task HideAfterDelayAsync(TimeSpan delay, CancellationToken cancellationToken)
     {
-        _dispatcherQueue.TryEnqueue(() =>
+        try
         {
-            NotificationVisibility = Visibility.Collapsed;
-        });
+            await Task.Delay(delay, cancellationToken);
+            HideNotification();
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer notification cancelled this timer — nothing to do.
+        }
+    }
+
+    /// <summary>
+    /// Resets all notification-related properties to their hidden/empty defaults.
+    /// </summary>
+    private void HideNotification()
+    {
+        IsNotificationVisible = false;
+        NotificationTitle = string.Empty;
+        NotificationMessage = string.Empty;
     }
 }

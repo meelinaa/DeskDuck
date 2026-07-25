@@ -15,8 +15,15 @@ namespace DeskDuck.Features.Chat;
 /// </summary>
 public sealed partial class ChatWindow : Window
 {
-    /// <summary>The view model that drives the chat UI.</summary>
+    /// <summary>
+    /// Gets the ViewModel associated with this view.
+    /// </summary>
     public ChatViewModel ViewModel { get; }
+
+    /// <summary>
+    /// Converts a bool to Visibility. Used by x:Bind in the XAML.
+    /// </summary>
+    public static Visibility BoolToVis(bool value) => value ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>
     /// Initializes the chat window: sets the title, fixes the size, keeps it always on top,

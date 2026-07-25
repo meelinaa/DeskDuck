@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+        dotnet-quality: 'preview'
+
+    - name: Restore dependencies
+      run: dotnet restore DeskDuck.slnx
+
+    - name: Build
+      run: dotnet build DeskDuck.slnx --configuration Release --no-restore
+
+    - name: Test
+      run: dotnet test DeskDuck.Tests/DeskDuck.Tests.csproj --configuration Release --no-build --verbosity normal
