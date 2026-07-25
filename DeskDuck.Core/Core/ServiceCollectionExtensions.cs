@@ -1,11 +1,11 @@
 using CommunityToolkit.Mvvm.Messaging;
 using DeskDuck.Core.Features.Chat;
 using DeskDuck.Core.Features.Messaging;
+using DeskDuck.Core.Features.Movement;
 using DeskDuck.Core.Features.Settings;
 using DeskDuck.Core.Features.Shell;
 using DeskDuck.Core.Features.SystemMonitor;
 using DeskDuck.Core.Features.Weather;
-using DeskDuck.Core.Manager;
 using DeskDuck.Core.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -49,7 +49,7 @@ public static class ServiceCollectionExtensions
 
         // Shell
         services.AddSingleton<IWindowService, WindowService>();
-        services.AddSingleton<IDuckMovementManager, DuckMovementManager>();
+        services.AddSingleton<IDuckMovementController, DuckMovementController>();
 
         // SystemMonitor
         services.AddSingleton<ISystemMetricsProvider, SystemMetricsProvider>();
@@ -60,7 +60,7 @@ public static class ServiceCollectionExtensions
 
         // Messaging
         services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
-        services.AddHostedService<RabbitMQBackgroundService>();
+        services.AddHostedService<RabbitMqBackgroundService>();
 
         // Background Publishers
         services.AddHostedService<SystemMonitorPublisherService>();

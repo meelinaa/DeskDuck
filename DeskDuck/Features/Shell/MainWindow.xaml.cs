@@ -1,6 +1,7 @@
+using DeskDuck.Core.Features.Movement;
+using DeskDuck.Core.Features.Settings;
 using DeskDuck.Core.Features.Shell;
 using DeskDuck.Core.Helper;
-using DeskDuck.Core.Manager;
 using DeskDuck.Core.Models;
 using DeskDuck.Helper;
 using Microsoft.Extensions.Logging;
@@ -26,7 +27,7 @@ public sealed partial class MainWindow : Window
 {
     private Win32WindowHelper.SUBCLASSPROC? _subclassProc;
 
-    private readonly IDuckMovementManager _movementManager;
+    private readonly IDuckMovementController _movementManager;
     private readonly ILogger<MainWindow> _logger;
     private readonly IWindowService _windowService;
 
@@ -38,7 +39,7 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// Converts a bool to Visibility. Used by x:Bind in the XAML.
     /// </summary>
-    public static Visibility BoolToVis(bool value) => value ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility BoolToVis(bool value) => value ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -50,7 +51,7 @@ public sealed partial class MainWindow : Window
     /// <param name="windowService">The window service for Win32 API interactions.</param>
     /// <param name="messenger">The messenger for sending and receiving commands.</param>
     public MainWindow(
-        IDuckMovementManager movementManager,
+        IDuckMovementController movementManager,
         IDuckWindowManager windowManager,
         IOptionsMonitor<GeneralSection> generalConfig,
         ILogger<MainWindow> logger,

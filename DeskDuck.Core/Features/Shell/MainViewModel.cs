@@ -117,7 +117,7 @@ public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificati
     }
 
     /// <summary>
-    /// Handles state changes from the DuckMovementManager to update the duck animation.
+    /// Handles state changes from the DuckMovementController to update the duck animation.
     /// </summary>
     /// <param name="state">The new state of the duck.</param>
     public void OnDuckStateChanged(DuckState state)
@@ -132,7 +132,7 @@ public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificati
     }
 
     /// <summary>
-    /// Handles position updates from the DuckMovementManager to update the coordinates display.
+    /// Handles position updates from the DuckMovementController to update the coordinates display.
     /// </summary>
     /// <param name="x">The new X coordinate.</param>
     /// <param name="y">The new Y coordinate.</param>

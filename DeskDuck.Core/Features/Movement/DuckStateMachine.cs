@@ -1,7 +1,7 @@
 using DeskDuck.Core.Enums;
 using Stateless;
 
-namespace DeskDuck.Core.Manager;
+namespace DeskDuck.Core.Features.Movement;
 
 /// <summary>
 /// Encapsulates the Stateless state machine for the duck's behavioral states.

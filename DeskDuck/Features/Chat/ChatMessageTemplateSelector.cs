@@ -9,7 +9,7 @@ namespace DeskDuck.Features.Chat;
 /// User messages use the right-aligned blue template; AI messages use the left-aligned gray template.
 /// By keeping this logic in the UI project, the Core model stays free of any WinUI dependencies.
 /// </summary>
-public class ChatMessageTemplateSelector : DataTemplateSelector
+public partial class ChatMessageTemplateSelector : DataTemplateSelector
 {
     /// <summary>Gets or sets the DataTemplate used to render messages sent by the user (right-aligned, blue bubble).</summary>
     public DataTemplate? UserTemplate { get; set; }

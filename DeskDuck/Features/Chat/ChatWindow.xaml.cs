@@ -23,7 +23,7 @@ public sealed partial class ChatWindow : Window
     /// <summary>
     /// Converts a bool to Visibility. Used by x:Bind in the XAML.
     /// </summary>
-    public static Visibility BoolToVis(bool value) => value ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility BoolToVis(bool value) => value ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>
     /// Initializes the chat window: sets the title, fixes the size, keeps it always on top,

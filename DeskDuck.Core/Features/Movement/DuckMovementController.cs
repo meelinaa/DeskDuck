@@ -1,10 +1,11 @@
 using DeskDuck.Core.Enums;
+
 using DeskDuck.Core.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Timers;
 
-namespace DeskDuck.Core.Manager;
+namespace DeskDuck.Core.Features.Movement;
 
 /// <summary>
 /// Manages the autonomous movement of the duck overlay window across the desktop.
@@ -16,11 +17,11 @@ namespace DeskDuck.Core.Manager;
 /// Movement is driven by a <see cref="System.Timers.Timer"/> running at ~60 fps
 /// on a thread-pool thread, which is safe because this class only mutates its own state.
 /// </summary>
-public class DuckMovementManager : IDuckMovementManager
+public class DuckMovementController : IDuckMovementController
 {
     private readonly Random _random = new();
     private readonly DuckConfig _config;
-    private readonly ILogger<DuckMovementManager> _logger;
+    private readonly ILogger<DuckMovementController> _logger;
     private readonly DuckStateMachine _stateMachine;
 
     // Screen and duck bounds — set by Initialize()
@@ -55,11 +56,11 @@ public class DuckMovementManager : IDuckMovementManager
     public event Action<int, int>? PositionChanged;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DuckMovementManager"/> class.
+    /// Initializes a new instance of the <see cref="DuckMovementController"/> class.
     /// </summary>
     /// <param name="config">Configuration options for duck movement logic.</param>
     /// <param name="logger">Logger for recording state transitions and errors.</param>
-    public DuckMovementManager(IOptions<DuckConfig> config, ILogger<DuckMovementManager> logger)
+    public DuckMovementController(IOptions<DuckConfig> config, ILogger<DuckMovementController> logger)
     {
         _config = config.Value;
         _logger = logger;

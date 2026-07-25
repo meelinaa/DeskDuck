@@ -1,4 +1,5 @@
 using DeskDuck.Core.Features.Chat;
+using DeskDuck.Core.Features.Movement;
 using DeskDuck.Core.Features.Shell;
 using DeskDuck.Features.Chat;
 using DeskDuck.Features.Settings;
@@ -8,7 +9,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Windowing;
 using System;
 using Windows.Graphics;
-using DeskDuck.Core.Manager;
 using Microsoft.UI.Xaml;
 
 namespace DeskDuck.Features.Shell;
@@ -25,12 +25,12 @@ namespace DeskDuck.Features.Shell;
 /// <param name="loggerFactory">Factory for creating loggers.</param>
 public class DuckWindowManager(
     IServiceProvider serviceProvider,
-    IDuckMovementManager movementManager,
+    IDuckMovementController movementManager,
     ILoggerFactory loggerFactory) : IDuckWindowManager
 {
     private AppWindow? _duckAppWindow;
     private readonly IServiceProvider _serviceProvider = serviceProvider;
-    private readonly IDuckMovementManager _movementManager = movementManager;
+    private readonly IDuckMovementController _movementManager = movementManager;
     private readonly ILoggerFactory _loggerFactory = loggerFactory;
 
     private ChatWindow? _chatWindow;

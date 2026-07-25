@@ -1,13 +1,13 @@
 using DeskDuck.Core.Enums;
 
-namespace DeskDuck.Core.Manager;
+namespace DeskDuck.Core.Features.Movement;
 
 /// <summary>
 /// Manages the autonomous movement and state transitions of the duck overlay window.
 /// This interface is entirely free of WinUI dependencies — callers supply screen and
 /// duck dimensions, and the manager communicates position updates through events.
 /// </summary>
-public interface IDuckMovementManager
+public interface IDuckMovementController
 {
     /// <summary>
     /// Event triggered when the duck changes its animation or behavioral state.

@@ -1,7 +1,7 @@
 using DeskDuck.Core.Enums;
-using DeskDuck.Core.Manager;
+using DeskDuck.Core.Features.Movement;
 
-namespace DeskDuck.Tests.Features.Manager;
+namespace DeskDuck.Tests.Features.Movement;
 
 /// <summary>
 /// Unit tests for <see cref="DuckStateMachine"/>.

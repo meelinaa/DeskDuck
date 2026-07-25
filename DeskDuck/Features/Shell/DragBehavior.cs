@@ -1,6 +1,6 @@
 using DeskDuck.Core.Features.Shell;
 using DeskDuck.Core.Helper;
-using DeskDuck.Core.Manager;
+using DeskDuck.Core.Features.Movement;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
@@ -71,7 +71,7 @@ public static class DragBehavior
         PointerPointProperties properties = e.GetCurrentPoint(element).Properties;
 
         App app = (App)Application.Current;
-        IDuckMovementManager movementManager = app.Host.Services.GetRequiredService<IDuckMovementManager>();
+        var movementManager = app.Host.Services.GetRequiredService<IDuckMovementController>();
 
         if (properties.IsLeftButtonPressed)
         {
@@ -109,7 +109,7 @@ public static class DragBehavior
             flyout.Closed -= Flyout_Closed;
 
         App app = (App)Application.Current;
-        IDuckMovementManager movementManager = app.Host.Services.GetRequiredService<IDuckMovementManager>();
+        var movementManager = app.Host.Services.GetRequiredService<IDuckMovementController>();
         MainWindow mainWindow = app.Host.Services.GetRequiredService<MainWindow>();
         AppWindow appWindow = mainWindow.AppWindow;
         if (appWindow != null)
@@ -147,7 +147,7 @@ public static class DragBehavior
         element.ReleasePointerCapture(e.Pointer);
 
         App app = (App)Application.Current;
-        IDuckMovementManager movementManager = app.Host.Services.GetRequiredService<IDuckMovementManager>();
+        var movementManager = app.Host.Services.GetRequiredService<IDuckMovementController>();
         MainWindow mainWindow = app.Host.Services.GetRequiredService<MainWindow>();
         AppWindow appWindow = mainWindow.AppWindow;
         if (appWindow != null)

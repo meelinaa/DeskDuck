@@ -16,18 +16,18 @@ namespace DeskDuck.Core.Features.Messaging;
 /// dispatches incoming notification messages to the UI via IMessenger.
 /// Automatically reconnects on connection failures with a 5-second retry delay.
 /// </summary>
-public partial class RabbitMQBackgroundService : BackgroundService
+public partial class RabbitMqBackgroundService : BackgroundService
 {
     private readonly IOptionsMonitor<RabbitMqOptions> _optionsMonitor;
-    private readonly ILogger<RabbitMQBackgroundService> _logger;
+    private readonly ILogger<RabbitMqBackgroundService> _logger;
     private readonly IMessenger _messenger;
     private IConnection? _connection;
     private IChannel? _channel;
     private CancellationTokenSource? _reconnectCts;
 
-    public RabbitMQBackgroundService(
+    public RabbitMqBackgroundService(
         IOptionsMonitor<RabbitMqOptions> optionsMonitor,
-        ILogger<RabbitMQBackgroundService> logger,
+        ILogger<RabbitMqBackgroundService> logger,
         IMessenger messenger)
     {
         _optionsMonitor = optionsMonitor;
