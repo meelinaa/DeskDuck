@@ -18,7 +18,7 @@ public class RabbitMqOptions
 
     /// <summary>The password to authenticate with RabbitMQ.</summary>
     [Required(AllowEmptyStrings = false)]
-    public string Password { get; set; } = MessagingConstants.DefaultPassword;
+    public string Password { get; set; } = string.Empty;
 
     /// <summary>The name of the RabbitMQ queue to publish notifications to.</summary>
     public string QueueName { get; set; } = MessagingConstants.DefaultQueueName;
