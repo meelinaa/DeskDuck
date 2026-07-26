@@ -25,7 +25,7 @@ public class SystemMetricsProvider(ILogger<SystemMetricsProvider> logger) : ISys
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting battery");
+            _logger.LogDebug(ex, "Error getting battery");
         }
         return null;
     }
@@ -55,7 +55,7 @@ public class SystemMetricsProvider(ILogger<SystemMetricsProvider> logger) : ISys
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting CPU usage");
+            _logger.LogDebug(ex, "Error getting CPU usage");
         }
         return null;
     }
@@ -70,7 +70,7 @@ public class SystemMetricsProvider(ILogger<SystemMetricsProvider> logger) : ISys
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting RAM usage");
+            _logger.LogDebug(ex, "Error getting RAM usage");
         }
         return null;
     }

@@ -156,7 +156,7 @@ public sealed partial class MainWindow : Window
             byte b = Convert.ToByte(hex.Substring(4, 2), 16);
             return new SolidColorBrush(Color.FromArgb(255, r, g, b));
         }
-        catch
+        catch (FormatException)
         {
             return new SolidColorBrush(Colors.Black);
         }

@@ -43,7 +43,10 @@ public partial class RabbitMqPublisher : IRabbitMqPublisher, IDisposable
                     {
                         await _channel.CloseAsync();
                     }
-                    catch { }
+                    catch (Exception ex) 
+                    { 
+                        _logger.LogTrace(ex, "Failed to close channel"); 
+                    }
                     _channel = null;
                 }
                 if (_connection != null)
@@ -52,7 +55,10 @@ public partial class RabbitMqPublisher : IRabbitMqPublisher, IDisposable
                     {
                         await _connection.CloseAsync();
                     }
-                    catch { }
+                    catch (Exception ex) 
+                    { 
+                        _logger.LogTrace(ex, "Failed to close connection"); 
+                    }
                     _connection = null;
                 }
             }
@@ -85,7 +91,10 @@ public partial class RabbitMqPublisher : IRabbitMqPublisher, IDisposable
                 {
                     await _channel.CloseAsync(cancellationToken: cancellationToken);
                 }
-                catch { }
+                catch (Exception ex) 
+                { 
+                    _logger.LogTrace(ex, "Failed to close channel"); 
+                }
                 _channel = null;
             }
             if (_connection != null)
@@ -94,7 +103,10 @@ public partial class RabbitMqPublisher : IRabbitMqPublisher, IDisposable
                 {
                     await _connection.CloseAsync(cancellationToken: cancellationToken);
                 }
-                catch { }
+                catch (Exception ex) 
+                { 
+                    _logger.LogTrace(ex, "Failed to close connection"); 
+                }
                 _connection = null;
             }
 

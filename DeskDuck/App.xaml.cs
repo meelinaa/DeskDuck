@@ -44,6 +44,10 @@ namespace DeskDuck
                 .WriteTo.File(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DeskDuck", "logs", "deskduck.log"), rollingInterval: RollingInterval.Day)
                 .CreateLogger();
 
+            // Register global exception handlers for Fail-Fast crash reporting
+            this.UnhandledException += OnUnhandledException;
+            AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
+
             Host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
                 .UseSerilog()
                 .ConfigureAppConfiguration((hostingContext, config) =>
@@ -72,6 +76,29 @@ namespace DeskDuck
             Host.Start();
             _window = Host.Services.GetRequiredService<MainWindow>();
             _window.Activate();
+        }
+
+        private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+        {
+            // Do NOT set e.Handled = true. Fail-Fast principle.
+            Log.Fatal(e.Exception, "A fatal unhandled UI exception occurred.");
+            Log.CloseAndFlush();
+            Environment.Exit(1);
+        }
+
+        private void OnAppDomainUnhandledException(object sender, System.UnhandledExceptionEventArgs e)
+        {
+            if (e.ExceptionObject is Exception ex)
+            {
+                Log.Fatal(ex, "A fatal unhandled AppDomain exception occurred.");
+            }
+            else
+            {
+                Log.Fatal("A fatal unhandled AppDomain exception occurred: {ExceptionObject}", e.ExceptionObject);
+            }
+            
+            Log.CloseAndFlush();
+            Environment.Exit(1);
         }
     }
 }

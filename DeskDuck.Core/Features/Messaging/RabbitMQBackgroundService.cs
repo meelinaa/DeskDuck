@@ -130,6 +130,7 @@ public partial class RabbitMqBackgroundService : BackgroundService
                 AsyncEventingBasicConsumer consumer = new(_channel);
                 consumer.ReceivedAsync += async (model, ea) =>
                 {
+                    using var scope = _logger.BeginScope("Processing message {DeliveryTag} from {Queue}", ea.DeliveryTag, config.QueueName);
                     try
                     {
                         var body = ea.Body.ToArray();
@@ -144,7 +145,7 @@ public partial class RabbitMqBackgroundService : BackgroundService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error processing message");
+                        _logger.LogError(ex, "Error processing message from {Queue}", config.QueueName);
                     }
                     finally
                     {
@@ -155,7 +156,7 @@ public partial class RabbitMqBackgroundService : BackgroundService
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "Error sending BasicAck");
+                            _logger.LogError(ex, "Error sending BasicAck for {DeliveryTag}", ea.DeliveryTag);
                         }
                     }
                 };
@@ -177,7 +178,7 @@ public partial class RabbitMqBackgroundService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "RabbitMQ connection failed. Retrying in 5 seconds...");
+                _logger.LogWarning(ex, "RabbitMQ connection failed. Retrying in 5 seconds...");
                 try 
                 {
                     await Task.Delay(5000, stoppingToken); 

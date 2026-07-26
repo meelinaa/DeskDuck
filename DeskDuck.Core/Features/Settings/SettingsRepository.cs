@@ -53,9 +53,13 @@ public class SettingsRepository(ILogger<SettingsRepository> logger) : ISettingsR
                 }) ?? new AppSettingsModel();
             }
         }
-        catch (Exception ex)
+        catch (IOException ex)
         {
-            _logger.LogError(ex, "Error loading config");
+            _logger.LogError(ex, "IO Error loading config");
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON Error loading config");
         }
         return new AppSettingsModel();
     }
@@ -74,9 +78,13 @@ public class SettingsRepository(ILogger<SettingsRepository> logger) : ISettingsR
             string json = JsonSerializer.Serialize(settings, options);
             File.WriteAllText(configPath, json);
         }
-        catch (Exception ex)
+        catch (IOException ex)
         {
-            _logger.LogError(ex, "Error saving config");
+            _logger.LogError(ex, "IO Error saving config");
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON Error saving config");
         }
     }
 }
