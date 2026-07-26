@@ -109,11 +109,9 @@ public class OllamaChatServiceTests
         // Arrange
         HttpRequestMessage? capturedRequest = null;
         var handlerMock = new Mock<HttpMessageHandler>();
-        
-        handlerMock.Protected()
-            .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+        handlerMock.Protected().Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
             .Callback<HttpRequestMessage, CancellationToken>((req, _) => capturedRequest = req)
-            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") }); // Empty dummy JSON to prevent crash
+            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
 
         var httpClient = new HttpClient(handlerMock.Object) { BaseAddress = new Uri("http://localhost:11434") };
         _mockHttpClientFactory.Setup(f => f.CreateClient("DeskDuck")).Returns(httpClient);
@@ -173,7 +171,7 @@ public class OllamaChatServiceTests
     }
 
     /// <summary>
-    /// A dummy stream that throws an Exception on Read to simulate connection loss mid-stream.
+    /// Stream that throws an Exception on Read to simulate connection loss mid-stream.
     /// </summary>
     private class FaultyStream : Stream
     {

@@ -9,7 +9,6 @@ namespace DeskDuck.Core.Features.Chat;
 /// </summary>
 public partial class ChatMessage : ObservableObject
 {
-    /// <summary>Gets or sets the text content of this message.</summary>
     [ObservableProperty]
     public partial string Text { get; set; } = string.Empty;
 

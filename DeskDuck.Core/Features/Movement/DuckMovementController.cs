@@ -82,8 +82,6 @@ public class DuckMovementController : IDuckMovementController
         _movementTimer = new System.Timers.Timer(interval: 16); // ~60 fps
         _movementTimer.Elapsed += OnTimerTick;
         _movementTimer.AutoReset = true;
-
-        // Notify listeners of the initial state
         OnStateMachineTransitioned(_stateMachine.CurrentState);
     }
 
@@ -147,7 +145,8 @@ public class DuckMovementController : IDuckMovementController
         }
         else if (_stateMachine.CurrentState == DuckState.Waiting)
         {
-            // Force a new destination cycle from the teleported position
+            // The wait task is currently delaying. To abort the ongoing delay and force a new random destination 
+            // from the new teleported coordinates, we transition through Walking and immediately trigger ReachDestination.
             _stateMachine.Fire(DuckTrigger.StartWalkingLeft);
             _stateMachine.Fire(DuckTrigger.ReachDestination);
         }

@@ -18,6 +18,7 @@ public partial class RabbitMqPublisher : IRabbitMqPublisher, IDisposable
     private readonly ILogger<RabbitMqPublisher> _logger;
     private IConnection? _connection;
     private IChannel? _channel;
+    // Semaphore prevents race conditions and redundant connection attempts during concurrent publishing.
     private readonly SemaphoreSlim _connectionSemaphore = new(1, 1);
 
     /// <summary>

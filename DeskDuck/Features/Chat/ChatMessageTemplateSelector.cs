@@ -11,10 +11,8 @@ namespace DeskDuck.Features.Chat;
 /// </summary>
 public partial class ChatMessageTemplateSelector : DataTemplateSelector
 {
-    /// <summary>Gets or sets the DataTemplate used to render messages sent by the user (right-aligned, blue bubble).</summary>
     public DataTemplate? UserTemplate { get; set; }
 
-    /// <summary>Gets or sets the DataTemplate used to render messages sent by the AI assistant (left-aligned, gray bubble).</summary>
     public DataTemplate? AssistantTemplate { get; set; }
 
     /// <summary>

@@ -177,7 +177,6 @@ public class DuckMovementControllerTests
         Assert.Equal(0.0, GetFieldValue<double>(controller, "_dy"));
     }
 
-    // Helper methods for reflection
     private static T? GetFieldValue<T>(object obj, string fieldName)
     {
         FieldInfo? field = obj.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
