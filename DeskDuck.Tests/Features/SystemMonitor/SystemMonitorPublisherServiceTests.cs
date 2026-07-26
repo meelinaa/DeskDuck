@@ -33,6 +33,7 @@ namespace DeskDuck.Tests.Features.SystemMonitor
             _mockOptions.Setup(o => o.CurrentValue).Returns(config);
         }
 
+        // [R]IGHT: Valid usage correctly triggers warning publication
         [Fact]
         public async Task CheckSystemMetrics_WhenRamExceedsThreshold_PublishesWarning()
         {
@@ -59,6 +60,7 @@ namespace DeskDuck.Tests.Features.SystemMonitor
                 It.IsAny<CancellationToken>()), Times.Once);
         }
 
+        // [R]IGHT: Normal usage correctly skips publication
         [Fact]
         public async Task CheckSystemMetrics_WhenMetricsAreNormal_DoesNotPublish()
         {
@@ -85,6 +87,7 @@ namespace DeskDuck.Tests.Features.SystemMonitor
                 It.IsAny<CancellationToken>()), Times.Never);
         }
 
+        // [B]OUNDARY: Invalid threshold is clamped
         [Fact]
         public async Task CheckSystemMetrics_WithInvalidThreshold_ClampsToValidRange()
         {
@@ -130,6 +133,33 @@ namespace DeskDuck.Tests.Features.SystemMonitor
                 It.Is<string>(s => s.Contains("Hohe CPU-Auslastung")),
                 null,
                 It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        // [R]IGHT: Background service correctly exits loop upon cancellation
+        [Fact]
+        public async Task ExecuteAsync_BackgroundLoop_RespectsCancellation()
+        {
+            // Arrange
+            _mockMetrics.Setup(m => m.GetRamUsage()).Returns(50.0);
+            _mockMetrics.Setup(m => m.GetCpuUsageAsync(It.IsAny<CancellationToken>())).ReturnsAsync(50.0);
+            _mockMetrics.Setup(m => m.GetBatteryPercent()).Returns(50.0);
+
+            SystemMonitorPublisherService service = new(
+                _mockOptions.Object,
+                _mockPublisher.Object,
+                _mockLogger.Object,
+                _mockMetrics.Object);
+
+            // Act
+            CancellationTokenSource cts = new();
+            await service.StartAsync(cts.Token);
+            
+            // Cancel to break the loop
+            cts.Cancel();
+            await service.StopAsync(CancellationToken.None);
+
+            // Assert
+            Assert.True(service.ExecuteTask?.IsCompleted);
         }
     }
 }

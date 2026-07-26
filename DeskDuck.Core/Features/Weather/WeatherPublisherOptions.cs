@@ -16,7 +16,6 @@ public class WeatherPublisherOptions
     public int IntervalMinutes { get; set; } = 30;
 
     /// <summary>OpenWeatherMap API key. The service skips updates when this is empty.</summary>
-    [Required(AllowEmptyStrings = false)]
     public string ApiKey { get; set; } = string.Empty;
 
     /// <summary>

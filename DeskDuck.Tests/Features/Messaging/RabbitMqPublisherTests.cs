@@ -25,6 +25,7 @@ namespace DeskDuck.Tests.Features.Messaging
             _mockOptions.Setup(o => o.CurrentValue).Returns(config);
         }
 
+        // [E]RROR: Connection failure throws exception which is swallowed and logged
         [Fact]
         public async Task PublishAsync_WhenConnectionFails_CatchesExceptionAndLogsError()
         {
@@ -47,6 +48,7 @@ namespace DeskDuck.Tests.Features.Messaging
                 Times.Once);
         }
 
+        // [R]IGHT: Callback runs without crashing
         [Fact]
         public void OnChange_TriggeredByOptionsMonitor_DoesNotCrash()
         {
@@ -69,6 +71,38 @@ namespace DeskDuck.Tests.Features.Messaging
             Assert.Null(exception);
         }
 
+        // [B]OUNDARY: Concurrent execution of thread-unsafe connection initialization
+        [Fact]
+        public async Task PublishAsync_ConcurrentCalls_DoNotDeadlock()
+        {
+            // Arrange
+            RabbitMqPublisher publisher = new(_mockOptions.Object, _mockLogger.Object);
+            int concurrentCallers = 10;
+            Task[] tasks = new Task[concurrentCallers];
+
+            // Act
+            // Start multiple PublishAsync calls concurrently to test the SemaphoreSlim thread-safety
+            for (int i = 0; i < concurrentCallers; i++)
+            {
+                tasks[i] = Task.Run(() => publisher.PublishAsync("Source", "Info", $"Message {i}", null, CancellationToken.None));
+            }
+
+            await Task.WhenAll(tasks);
+
+            // Assert
+            // All tasks should complete without deadlocking and without throwing exceptions back to the caller.
+            // Errors will be logged due to the invalid connection host.
+            _mockLogger.Verify(
+                x => x.Log(
+                    LogLevel.Error,
+                    It.IsAny<EventId>(),
+                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Error publishing message")),
+                    It.IsAny<Exception>(),
+                    It.Is<Func<It.IsAnyType, Exception?, string>>((v, t) => true)),
+                Times.Exactly(concurrentCallers));
+        }
+
+        // [E]RROR: Missing configuration validation
         [Fact]
         public async Task PublishAsync_WhenConfigIsMissing_LogsErrorAndDoesNotCrash()
         {
