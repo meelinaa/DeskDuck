@@ -119,7 +119,8 @@ public partial class RabbitMqPublisher : IRabbitMqPublisher, IDisposable
             {
                 HostName = config.HostName,
                 UserName = config.UserName,
-                Password = config.Password
+                Password = config.Password,
+                Port = config.Port
             };
 
             _connection = await factory.CreateConnectionAsync(cancellationToken);

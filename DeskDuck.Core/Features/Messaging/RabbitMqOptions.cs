@@ -12,6 +12,9 @@ public class RabbitMqOptions
     [Required(AllowEmptyStrings = false)]
     public string HostName { get; set; } = MessagingConstants.DefaultHostName;
 
+    /// <summary>The port of the RabbitMQ server. Defaults to 5672.</summary>
+    public int Port { get; set; } = 5672;
+
     /// <summary>The username to authenticate with RabbitMQ.</summary>
     [Required(AllowEmptyStrings = false)]
     public string UserName { get; set; } = MessagingConstants.DefaultUserName;
