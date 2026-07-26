@@ -80,7 +80,7 @@ public class WeatherPublisherServiceTests
         _mockPublisher.Verify(p => p.PublishAsync(
             "Wetter",
             "Info",
-            "Aktuelles Wetter in TestCity: 22,5°C, Leichter Regen.",
+            $"Aktuelles Wetter in TestCity: {22.5:F1}°C, Leichter Regen.",
             null,
             It.IsAny<CancellationToken>()), Times.Once);
     }

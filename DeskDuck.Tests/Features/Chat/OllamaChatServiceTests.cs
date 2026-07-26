@@ -107,10 +107,10 @@ public class OllamaChatServiceTests
     public async Task AskStreamAsync_ModelName_OverridesConfig()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string capturedContent = string.Empty;
         var handlerMock = new Mock<HttpMessageHandler>();
         handlerMock.Protected().Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
-            .Callback<HttpRequestMessage, CancellationToken>((req, _) => capturedRequest = req)
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) => capturedContent = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult())
             .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
 
         var httpClient = new HttpClient(handlerMock.Object) { BaseAddress = new Uri("http://localhost:11434") };
@@ -126,11 +126,10 @@ public class OllamaChatServiceTests
         await enumerator.MoveNextAsync();
 
         // Assert
-        Assert.NotNull(capturedRequest);
-        var content = await capturedRequest.Content!.ReadAsStringAsync();
+        Assert.NotEmpty(capturedContent);
         
         // Assert the model in the JSON payload is "override-model"
-        Assert.Contains("\"model\":\"override-model\"", content);
+        Assert.Contains("\"model\":\"override-model\"", capturedContent);
     }
 
     /// <summary>

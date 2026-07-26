@@ -85,7 +85,7 @@ public class DuckMovementControllerTests
         
         SetFieldValue(controller, "_currentX", 10.0);
         SetFieldValue(controller, "_currentY", 10.0);
-        SetFieldValue(controller, "_targetX", 20.0);
+        SetFieldValue(controller, "_targetX", 30.0);
         SetFieldValue(controller, "_targetY", 10.0);
         SetFieldValue(controller, "_dx", 5.0);
         SetFieldValue(controller, "_dy", 0.0);
