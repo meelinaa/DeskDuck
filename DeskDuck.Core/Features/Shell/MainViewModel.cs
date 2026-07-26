@@ -70,6 +70,7 @@ public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificati
 
     private readonly IMessenger _messenger;
     private readonly IDuckWindowManager _windowManager;
+    private readonly SynchronizationContext? _syncContext;
 
     /// <summary>
     /// CancellationTokenSource that controls the 30-second auto-hide timer for the
@@ -86,6 +87,7 @@ public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificati
     {
         _messenger = messenger;
         _windowManager = windowManager;
+        _syncContext = SynchronizationContext.Current;
         _messenger.RegisterAll(this);
     }
 
@@ -149,6 +151,12 @@ public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificati
     /// <inheritdoc/>
     public void Receive(ShowNotificationMessage message)
     {
+        if (_syncContext != null && SynchronizationContext.Current != _syncContext)
+        {
+            _syncContext.Post(_ => Receive(message), null);
+            return;
+        }
+
         NotificationTitle = message.Notification.Title ?? string.Empty;
         NotificationMessage = message.Notification.Message;
 
@@ -157,6 +165,7 @@ public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificati
         {
             "warning" => "#8B0000",  // DarkRed
             "info"    => "#00008B",  // DarkBlue
+            "success" => "#006400",  // DarkGreen
             _         => "#1A1A1A"
         };
 
@@ -168,12 +177,23 @@ public partial class MainViewModel : ObservableObject, IRecipient<ShowNotificati
         _notificationHideCts = new CancellationTokenSource();
         CancellationToken token = _notificationHideCts.Token;
 
-        // Start the 30-second auto-hide timer without blocking the caller
-        _ = HideAfterDelayAsync(TimeSpan.FromSeconds(30), token);
+        // Start the 30-second auto-hide timer only if the message is NOT persistent
+        if (!message.IsPersistent)
+        {
+            _ = HideAfterDelayAsync(TimeSpan.FromSeconds(30), token);
+        }
     }
 
     /// <inheritdoc/>
-    public void Receive(HideNotificationMessage message) => HideNotification();
+    public void Receive(HideNotificationMessage message)
+    {
+        if (_syncContext != null && SynchronizationContext.Current != _syncContext)
+        {
+            _syncContext.Post(_ => HideNotification(), null);
+            return;
+        }
+        HideNotification();
+    }
 
     /// <summary>
     /// Waits for <paramref name="delay"/> and then hides the notification bubble,

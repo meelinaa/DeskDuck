@@ -24,6 +24,7 @@ public partial class RabbitMqBackgroundService : BackgroundService
     private IConnection? _connection;
     private IChannel? _channel;
     private CancellationTokenSource? _reconnectCts;
+    private bool _wasOffline;
 
     public RabbitMqBackgroundService(
         IOptionsMonitor<RabbitMqOptions> optionsMonitor,
@@ -100,12 +101,7 @@ public partial class RabbitMqBackgroundService : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             RabbitMqOptions config = _optionsMonitor.CurrentValue;
-            ConnectionFactory factory = new()
-            {
-                HostName = config.HostName,
-                UserName = config.UserName,
-                Password = config.Password
-            };
+            IConnectionFactory factory = CreateConnectionFactory(config);
 
             try
             {
@@ -167,6 +163,18 @@ public partial class RabbitMqBackgroundService : BackgroundService
                     consumer: consumer,
                     cancellationToken: token);
 
+                if (_wasOffline)
+                {
+                    _wasOffline = false;
+                    _messenger.Send(new ShowNotificationMessage(new NotificationMessage
+                    {
+                        Source = "System",
+                        Severity = "success",
+                        Title = "System",
+                        Message = "RabbitMQ ist wieder online! Die Ente ist einsatzbereit."
+                    }, IsPersistent: false));
+                }
+
                 while (_connection.IsOpen && !token.IsCancellationRequested)
                 {
                     await Task.Delay(1000, token);
@@ -179,9 +187,22 @@ public partial class RabbitMqBackgroundService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "RabbitMQ connection failed. Retrying in 5 seconds...");
+                
+                if (!_wasOffline)
+                {
+                    _wasOffline = true;
+                    _messenger.Send(new ShowNotificationMessage(new NotificationMessage
+                    {
+                        Source = "System",
+                        Severity = "warning",
+                        Title = "System",
+                        Message = "Verbindung zum Broker verloren. Bitte stelle sicher, dass Docker Desktop läuft und der Container aktiv ist."
+                    }, IsPersistent: true));
+                }
+
                 try 
                 {
-                    await Task.Delay(5000, stoppingToken); 
+                    await ReconnectDelayAsync(5000, stoppingToken); 
                 } 
                 catch 
                 {
@@ -194,5 +215,27 @@ public partial class RabbitMqBackgroundService : BackgroundService
                 _reconnectCts = null;
             }
         }
+    }
+
+    /// <summary>
+    /// Creates the connection factory. Extracted as a protected virtual method to allow
+    /// overriding with a mock factory during unit testing (Extract and Override pattern).
+    /// </summary>
+    protected virtual IConnectionFactory CreateConnectionFactory(RabbitMqOptions config)
+    {
+        return new ConnectionFactory
+        {
+            HostName = config.HostName,
+            UserName = config.UserName,
+            Password = config.Password
+        };
+    }
+
+    /// <summary>
+    /// Wraps Task.Delay to allow tests to override the delay and keep tests fast.
+    /// </summary>
+    protected virtual Task ReconnectDelayAsync(int millisecondsDelay, CancellationToken cancellationToken)
+    {
+        return Task.Delay(millisecondsDelay, cancellationToken);
     }
 }
