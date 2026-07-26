@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace DeskDuck.Core.Features.Chat;
 
 /// <summary>
@@ -7,9 +9,12 @@ namespace DeskDuck.Core.Features.Chat;
 public class OllamaOptions
 {
     /// <summary>The name of the Ollama model to use (e.g. llama3.2:latest).</summary>
+    [Required(AllowEmptyStrings = false)]
     public string Model { get; set; } = "llama3.2:latest";
 
     /// <summary>The base URL of the local Ollama API service.</summary>
+    [Required(AllowEmptyStrings = false)]
+    [Url]
     public string Url { get; set; } = "http://localhost:11434";
 
     /// <summary>The system prompt defining the duck's personality.</summary>

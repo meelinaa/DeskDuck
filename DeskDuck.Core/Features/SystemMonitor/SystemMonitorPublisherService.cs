@@ -96,7 +96,7 @@ public partial class SystemMonitorPublisherService : BackgroundService
             double? batteryPercent = _metricsProvider.GetBatteryPercent();
             if (batteryPercent.HasValue)
             {
-                int clampedBatteryThreshold = Math.Clamp(config.BatteryWarningThresholdPercent, 0, 100);
+                int clampedBatteryThreshold = config.BatteryWarningThresholdPercent;
                 if (batteryPercent.Value < clampedBatteryThreshold)
                 {
                     if (!_batteryWarningTriggered)
@@ -122,7 +122,7 @@ public partial class SystemMonitorPublisherService : BackgroundService
             double? cpuUsage = await _metricsProvider.GetCpuUsageAsync(cancellationToken);
             if (cpuUsage.HasValue)
             {
-                int clampedCpuThreshold = Math.Clamp(config.CpuWarningThresholdPercent, 0, 100);
+                int clampedCpuThreshold = config.CpuWarningThresholdPercent;
                 if (cpuUsage.Value > clampedCpuThreshold)
                 {
                     if (!_cpuWarningTriggered)
@@ -148,7 +148,7 @@ public partial class SystemMonitorPublisherService : BackgroundService
             double? ramUsage = _metricsProvider.GetRamUsage();
             if (ramUsage.HasValue)
             {
-                int clampedRamThreshold = Math.Clamp(config.RamWarningThresholdPercent, 0, 100);
+                int clampedRamThreshold = config.RamWarningThresholdPercent;
                 if (ramUsage.Value > clampedRamThreshold)
                 {
                     if (!_ramWarningTriggered)

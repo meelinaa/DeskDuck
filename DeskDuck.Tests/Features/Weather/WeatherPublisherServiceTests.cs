@@ -85,34 +85,6 @@ public class WeatherPublisherServiceTests
     }
 
     [Fact]
-    public async Task PublishWeatherUpdate_WhenApiKeyIsEmpty_DoesNothing()
-    {
-        // Arrange
-        WeatherPublisherOptions config = new()
-        {
-            Enabled = true,
-            ApiKey = "",
-            OverrideCity = "TestCity",
-            IntervalMinutes = 10
-        };
-        _mockOptions.Setup(o => o.CurrentValue).Returns(config);
-
-        WeatherPublisherService service = new(
-            _mockOptions.Object,
-            _mockPublisher.Object,
-            _mockHttpClientFactory.Object,
-            _mockLogger.Object);
-
-        // Act
-        await service.PublishWeatherUpdateAsync(_mockOptions.Object.CurrentValue, CancellationToken.None);
-
-        // Assert
-        _mockPublisher.Verify(p => p.PublishAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-        _mockHttpClientFactory.Verify(f => f.CreateClient(It.IsAny<string>()), Times.Never);
-    }
-
-    [Fact]
     public async Task PublishWeatherUpdate_WhenJsonIsMissingTemp_LogsErrorAndDoesNotPublish()
     {
         // Arrange

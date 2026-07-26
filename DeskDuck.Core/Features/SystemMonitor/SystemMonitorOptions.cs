@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace DeskDuck.Core.Features.SystemMonitor;
 
 /// <summary>
@@ -23,11 +25,13 @@ public class SystemMonitorOptions
     public bool CpuWarningEnabled { get; set; } = true;
 
     /// <summary>CPU usage percentage above which a warning notification is triggered.</summary>
+    [Range(0, 100)]
     public int CpuWarningThresholdPercent { get; set; } = 85;
 
     /// <summary>Whether high-RAM warnings are enabled.</summary>
     public bool RamWarningEnabled { get; set; } = true;
 
     /// <summary>RAM usage percentage above which a warning notification is triggered.</summary>
+    [Range(0, 100)]
     public int RamWarningThresholdPercent { get; set; } = 85;
 }

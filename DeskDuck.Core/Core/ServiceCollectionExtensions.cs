@@ -28,13 +28,36 @@ public static class ServiceCollectionExtensions
     /// <returns>The updated <see cref="IServiceCollection"/>.</returns>
     public static IServiceCollection AddDeskDuckFeatures(this IServiceCollection services, IConfiguration configuration)
     {
-        // Configure Options
-        services.Configure<SystemMonitorOptions>(configuration.GetSection("Publishers:SystemMonitor"));
-        services.Configure<WeatherPublisherOptions>(configuration.GetSection("Publishers:Weather"));
-        services.Configure<RabbitMqOptions>(configuration.GetSection("RabbitMQ"));
-        services.Configure<OllamaOptions>(configuration.GetSection("Ollama"));
-        services.Configure<DuckConfig>(configuration.GetSection("Duck"));
-        services.Configure<GeneralSection>(configuration.GetSection("General"));
+        // Configure Options with validation
+        services.AddOptions<SystemMonitorOptions>()
+            .Bind(configuration.GetSection("Publishers:SystemMonitor"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<WeatherPublisherOptions>()
+            .Bind(configuration.GetSection("Publishers:Weather"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<RabbitMqOptions>()
+            .Bind(configuration.GetSection("RabbitMQ"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<OllamaOptions>()
+            .Bind(configuration.GetSection("Ollama"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<DuckConfig>()
+            .Bind(configuration.GetSection("Duck"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<GeneralSection>()
+            .Bind(configuration.GetSection("General"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         // Core
         services.AddHttpClient("DeskDuck")
@@ -78,6 +101,8 @@ public static class ServiceCollectionExtensions
     {
         return HttpPolicyExtensions
             .HandleTransientHttpError()
-            .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+            .WaitAndRetryAsync(3, retryAttempt => 
+                TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)) 
+                + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 1000)));
     }
 }

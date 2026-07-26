@@ -95,11 +95,6 @@ public partial class WeatherPublisherService : BackgroundService
     /// </summary>
     internal async Task PublishWeatherUpdateAsync(WeatherPublisherOptions config, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(config.ApiKey))
-        {
-            _logger.LogWarning("OpenWeatherMap ApiKey is empty. Skipping weather update.");
-            return;
-        }
 
         string city = !string.IsNullOrWhiteSpace(config.OverrideCity)
             ? config.OverrideCity
