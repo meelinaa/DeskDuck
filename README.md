@@ -68,8 +68,8 @@
 ```
 
 ### Key Architectural Decisions
-- **Vertical Slice Architecture**: Features like Chat, SystemMonitor, and Settings are grouped into independent slices. This maximizes cohesion and allows enabling/disabling features easily.
-- **Decoupled Messaging (RabbitMQ)**: Background services (Publishers) and the UI (Consumer) run in the same process but communicate solely via AMQP. This guarantees UI responsiveness and ensures notifications are queued and displayed sequentially.
+- **Feature-based Layered Architecture**: The project separates UI (`DeskDuck`) and Business Logic (`DeskDuck.Core`) into distinct projects, but groups files internally by feature (e.g., Chat, SystemMonitor). This provides a clean separation of concerns while keeping feature-related logic cohesive.
+- **Decoupled Messaging (RabbitMQ)**: DeskDuck acts as a universal messaging consumer. The RabbitMQ integration is designed so that *external* services can publish notifications to the duck. For demonstration and portfolio purposes, background publishers (System Monitor, Weather) currently run within the same process to show immediate out-of-the-box functionality, but the architecture allows them to be completely decoupled.
 - **Local-First AI**: By utilizing Ollama directly on the host machine, the app guarantees zero-latency, offline-capable, and private LLM interactions without API costs.
 
 ---
@@ -185,7 +185,7 @@ dotnet test DeskDuck.slnx
 
 ## Project Structure
 
-DeskDuck uses a **Vertical Slice Architecture** to group all related files (Views, ViewModels, Services, and Models) by feature rather than by technical layer. This maximizes cohesion, minimizes coupling, and makes adding or removing features significantly easier.
+DeskDuck uses a **Feature-based Layered Architecture** to group all related files (Views, ViewModels, Services, and Models) by feature within their respective UI and Core layers. This maximizes cohesion, minimizes coupling, and makes adding or removing features significantly easier.
 
 ```text
 DeskDuck/
